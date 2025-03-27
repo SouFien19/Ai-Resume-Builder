@@ -95,5 +95,5 @@ If you would like to contribute to **Ai Resume Builder**, please follow these st
 
 ## Contact
 
-For any questions or feedback, please open an issue on the [GitHub repository](https://github.com/SouFien19/Automated-Resume-Builder/issues).
+For any questions or feedback, please open an issue on the [GitHub repository](https://github.com/SouFien19/Ai-Resume-Builder/issues).
 

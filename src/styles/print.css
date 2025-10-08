@@ -1,0 +1,208 @@
+/* ===================================
+   A4 PDF Print Styles
+   Optimized for professional resume printing
+   =================================== */
+
+@media print {
+  /* Reset page margins */
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  /* Hide non-essential elements */
+  body {
+    margin: 0;
+    padding: 0;
+    background: white;
+  }
+
+  /* Page break utilities */
+  .page-break-after {
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .page-break-before {
+    page-break-before: always;
+    break-before: page;
+  }
+
+  .page-break-inside-avoid {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* A4 Page Styling */
+  .a4-page {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    height: 297mm !important;
+    margin: 0 !important;
+    padding: 15mm 20mm !important;
+    box-shadow: none !important;
+    page-break-after: always;
+    break-after: page;
+    position: relative;
+  }
+
+  /* Last page should not have page break */
+  .a4-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  /* Container styling */
+  .a4-container {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Optimize text rendering */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color-adjust: exact;
+  }
+
+  /* Section breaks */
+  .resume-section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Keep headings with content */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+    break-after: avoid;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Keep list items together */
+  ul, ol {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  li {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Work experience entries */
+  .work-experience-item,
+  .project-item,
+  .education-item,
+  .certification-item {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Images and media */
+  img {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    max-width: 100% !important;
+  }
+
+  /* Links - show URLs */
+  a[href]:after {
+    content: none; /* Don't show URLs in resume */
+  }
+
+  /* Remove shadows and effects */
+  .shadow-lg,
+  .shadow-xl,
+  .shadow-2xl {
+    box-shadow: none !important;
+  }
+
+  /* Borders and backgrounds */
+  .border {
+    border-width: 1px !important;
+  }
+
+  /* Ensure backgrounds print */
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-blue-50,
+  .bg-purple-50 {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide navigation, buttons, and UI elements */
+  nav,
+  .no-print,
+  button:not(.print-button),
+  .sidebar,
+  .toolbar {
+    display: none !important;
+  }
+
+  /* Optimize spacing */
+  .container,
+  .max-w-7xl,
+  .max-w-6xl {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+}
+
+/* ===================================
+   Screen-only utilities (not for print)
+   =================================== */
+
+@media screen {
+  /* A4 Page styling for preview */
+  .a4-page {
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  /* Page break indicator styling */
+  .page-break-indicator {
+    margin: 2rem 0;
+    position: relative;
+    height: 2px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      #d1d5db 50%,
+      transparent
+    );
+  }
+
+  .page-break-indicator::after {
+    content: 'Page Break';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 0.25rem 1rem;
+    font-size: 0.75rem;
+    color: #6b7280;
+    border: 1px solid #d1d5db;
+    border-radius: 9999px;
+  }
+}
+
+/* ===================================
+   A4 Size Variables (for JavaScript)
+   =================================== */
+
+:root {
+  --a4-width: 210mm;
+  --a4-height: 297mm;
+  --a4-margin-top: 15mm;
+  --a4-margin-right: 20mm;
+  --a4-margin-bottom: 15mm;
+  --a4-margin-left: 20mm;
+  --a4-usable-width: calc(210mm - 40mm); /* 170mm */
+  --a4-usable-height: calc(297mm - 30mm); /* 267mm */
+}

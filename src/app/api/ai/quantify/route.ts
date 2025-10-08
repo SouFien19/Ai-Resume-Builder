@@ -1,0 +1,39 @@
+import { NextRequest, NextResponse } from "next/server";
+import { generateText, safeJson } from "@/lib/ai/gemini";
+import { getCache, setCache, CacheKeys } from "@/lib/redis";
+import crypto from "crypto";
+
+export async function POST(req: NextRequest) {
+  try {
+    const { text } = await req.json();
+    const src = (text || "").slice(0, 1200);
+    const prompt = `Rewrite the following resume lines with quantified impact.
+For each line, produce 1-2 improved options. Return JSON { items: { original: string, options: string[] }[] }.
+Keep each option concise, ATS-friendly, and avoid first person.
+TEXT:\n${src}\nJSON:`;
+
+    // Check cache
+    const promptHash = crypto.createHash('sha256').update(prompt).digest('hex').substring(0, 16);
+    const cacheKey = CacheKeys.ai.response(promptHash);
+    
+    const cached = await getCache<{ items: { original: string; options: string[] }[] }>(cacheKey);
+    if (cached) {
+      console.log('[AI Quantify] ✅ Cache HIT - Saved API cost!');
+      return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT', 'X-Cost-Saved': 'true' }});
+    }
+    
+    console.log('[AI Quantify] ⚠️ Cache MISS - Calling AI API');
+
+    const out = await generateText(prompt, { temperature: 0.5 });
+    const parsed = safeJson<{ items: { original: string; options: string[] }[] }>(out || "");
+    const responseData = parsed || { items: [] };
+    
+    // Cache for 1 hour
+    await setCache(cacheKey, responseData, 3600);
+    console.log('[AI Quantify] ✅ Cached response for 1 hour');
+    
+    return NextResponse.json(responseData, { headers: { 'X-Cache': 'MISS' }});
+  } catch {
+    return NextResponse.json({ items: [] }, { status: 200 });
+  }
+}

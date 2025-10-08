@@ -34,6 +34,16 @@ export async function generateText(prompt: string, options?: { maxTokens?: numbe
       if (!response.ok) {
         const errorText = await response.text();
         logger.error('Gemini API error', { status: response.status, error: errorText });
+        
+        // For quota exceeded errors, throw a more specific error type
+        if (response.status === 429) {
+          const quotaError: any = new Error(`QUOTA_EXCEEDED`);
+          quotaError.status = 429;
+          quotaError.isQuotaError = true;
+          quotaError.details = errorText;
+          throw quotaError;
+        }
+        
         throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
       }
 

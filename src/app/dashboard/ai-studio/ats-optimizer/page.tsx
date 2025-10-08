@@ -707,21 +707,24 @@ ${job.keywords.join(', ')}`;
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Analysis failed with status ${response.status}`);
+        const errorMsg = errorData.error?.message || errorData.error || `Analysis failed with status ${response.status}`;
+        throw new Error(errorMsg);
       }
 
-      const data = await response.json();
+      const apiResponse = await response.json();
+      const analysisData = apiResponse.data || apiResponse.analysis || apiResponse;
+      
       clearInterval(progressInterval);
       setCurrentStep(analysisSteps.length - 1);
       setAnalysisProgress(100);
 
-      if (data?.analysis) {
+      if (analysisData?.score !== undefined) {
         setTimeout(() => {
-          setResult(data.analysis);
+          setResult(analysisData);
           setIsAnalyzing(false);
         }, 500);
       } else {
-        throw new Error("No analysis data returned");
+        throw new Error("No analysis data returned from API");
       }
     } catch (err: unknown) {
       clearInterval(progressInterval);

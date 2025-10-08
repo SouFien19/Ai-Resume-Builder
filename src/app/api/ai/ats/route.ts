@@ -24,6 +24,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 interface ATSRequest {
   jobDescription: string;
+  resumeText?: string; // Direct text from frontend
   resume?: {
     content?: Record<string, unknown>;
   };
@@ -96,13 +97,19 @@ export async function POST(req: NextRequest) {
       }
       jd = sanitizeInput(truncate(body.jobDescription, MAX_JD_LENGTH));
 
-      // Validate resume content
-      if (!body.resume?.content) {
+      // Handle direct resumeText (from ATS optimizer page)
+      if (body.resumeText) {
+        allText = sanitizeInput(truncate(body.resumeText, MAX_RESUME_LENGTH));
+      }
+      // Handle resume.content object (from other sources)
+      else if (body.resume?.content) {
+        const resumeJson = JSON.stringify(body.resume.content);
+        allText = sanitizeInput(truncate(resumeJson, MAX_RESUME_LENGTH));
+      }
+      // No resume provided
+      else {
         throw APIErrors.BadRequest("Resume content is required");
       }
-      
-      const resumeJson = JSON.stringify(body.resume.content);
-      allText = sanitizeInput(truncate(resumeJson, MAX_RESUME_LENGTH));
     }
 
     logger.info("ATS analysis requested", {
@@ -159,15 +166,49 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON object.`;
     const cached = await getCache<any>(cacheKey);
     if (cached) {
       console.log('[AI ATS] ✅ Cache HIT - Saved API cost!');
-      return cached;
+      return successResponse(cached, { 'X-Cache': 'HIT', 'X-Cost-Saved': 'true' });
     }
     
     console.log('[AI ATS] ⚠️ Cache MISS - Calling AI API');
 
-    let text = await generateText(prompt, {
-      maxTokens: 1500,
-      temperature: 0.3,
-    });
+    let text: string;
+    try {
+      text = await generateText(prompt, {
+        maxTokens: 1500,
+        temperature: 0.3,
+      });
+    } catch (aiError: any) {
+      // Handle quota exceeded error with intelligent fallback
+      if (aiError?.status === 429 || aiError?.isQuotaError || aiError?.message?.includes('QUOTA_EXCEEDED')) {
+        logger.warn('Gemini API quota exceeded, using intelligent fallback', { userId });
+        
+        // Return a reasonable fallback score based on basic keyword matching
+        const jdKeywords = jd.toLowerCase().match(/\b\w{4,}\b/g) || [];
+        const resumeKeywords = allText.toLowerCase().match(/\b\w{4,}\b/g) || [];
+        const matchingKeywords = jdKeywords.filter(kw => resumeKeywords.includes(kw));
+        const matchRate = matchingKeywords.length / Math.max(jdKeywords.length, 1);
+        const fallbackScore = Math.round(50 + (matchRate * 30)); // 50-80 range
+        
+        const fallbackResponse = {
+          score: fallbackScore,
+          missingKeywords: jdKeywords.slice(0, 8).filter(kw => !resumeKeywords.includes(kw)),
+          recommendations: [
+            "⚠️ This is a fallback analysis due to API quota limits.",
+            "Your quota will reset in 24 hours. Upgrade to paid tier for unlimited access.",
+            "Add more specific keywords from the job description to your resume.",
+            "Ensure your technical skills match the job requirements.",
+            "Quantify your achievements with metrics and numbers.",
+            "Tailor your summary to highlight relevant experience.",
+          ],
+        };
+        
+        logger.info('Returning fallback ATS analysis', { score: fallbackScore, userId });
+        return successResponse(fallbackResponse, { 'X-Cache': 'FALLBACK', 'X-Quota-Exceeded': 'true' });
+      }
+      
+      // Re-throw other errors
+      throw aiError;
+    }
 
     // Clean markdown code blocks if present
     text = text.replace(/```json\s*/g, '').replace(/```\s*$/g, '').trim();
@@ -228,13 +269,11 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON object.`;
         recommendationCount: validated.recommendations.length,
       });
 
-      const responseData = successResponse(validated);
-      
-      // Cache for 1 hour
-      await setCache(cacheKey, responseData, 3600);
+      // Cache the validated data (not the full response)
+      await setCache(cacheKey, validated, 3600);
       console.log('[AI ATS] ✅ Cached response for 1 hour');
 
-      return responseData;
+      return successResponse(validated, { 'X-Cache': 'MISS' });
     }
 
     // Fallback if AI parsing fails

@@ -6,6 +6,10 @@ import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { WebVitals } from "./web-vitals";
+import ToastProvider from "@/components/providers/ToastProvider";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
+import CookieConsent from "@/components/CookieConsent";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const fontSans = FontSans({
   subsets: ["latin"],
@@ -17,8 +21,72 @@ const fontSans = FontSans({
 });
 
 export const metadata: Metadata = {
-  title: "ResumeCraft AI",
-  description: "Build your professional resume with the power of AI",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
+  title: {
+    default: "ResumeCraft AI - AI-Powered Resume Builder | Create Professional Resumes in Minutes",
+    template: "%s | ResumeCraft AI"
+  },
+  description: "Transform your career with ResumeCraft AI. Our intelligent resume builder uses advanced AI to create ATS-optimized, professional resumes that get you hired. Free templates, real-time suggestions, and keyword optimization.",
+  keywords: [
+    "AI resume builder",
+    "professional resume",
+    "ATS-optimized resume",
+    "resume templates",
+    "CV builder",
+    "job application",
+    "career tools",
+    "resume maker",
+    "AI resume writer",
+    "cover letter generator"
+  ],
+  authors: [{ name: "ResumeCraft AI Team" }],
+  creator: "ResumeCraft AI",
+  publisher: "ResumeCraft AI",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "/",
+    title: "ResumeCraft AI - AI-Powered Resume Builder",
+    description: "Create professional, ATS-optimized resumes in minutes with our AI-powered resume builder. Get hired faster with intelligent suggestions and beautiful templates.",
+    siteName: "ResumeCraft AI",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "ResumeCraft AI - AI-Powered Resume Builder",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ResumeCraft AI - AI-Powered Resume Builder",
+    description: "Create professional, ATS-optimized resumes in minutes with AI. Get hired faster!",
+    images: ["/twitter-image.png"],
+    creator: "@resumecraft",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
@@ -26,6 +94,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const gaId = process.env.NEXT_PUBLIC_GA_ID;
+
   return (
     <ClerkProvider 
       publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
@@ -42,31 +112,36 @@ export default function RootLayout({
             fontSans.variable
           )}
         >
+          {gaId && <GoogleAnalytics gaId={gaId} />}
           <ThemeProvider
             attribute="class"
             defaultTheme="system"
             enableSystem
             disableTransitionOnChange
           >
-            {children}
-            <Toaster 
-              position="top-right" 
-              richColors 
-              expand={false}
-              duration={4000}
-              closeButton
-              theme="dark"
-              toastOptions={{
-                style: {
-                  background: 'rgba(23, 23, 23, 0.95)',
-                  backdropFilter: 'blur(12px)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  color: '#fff',
-                },
-                className: 'font-medium',
-              }}
-            />
-            <WebVitals />
+            <ErrorBoundary>
+              {children}
+              <Toaster 
+                position="top-right" 
+                richColors 
+                expand={false}
+                duration={4000}
+                closeButton
+                theme="dark"
+                toastOptions={{
+                  style: {
+                    background: 'rgba(23, 23, 23, 0.95)',
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    color: '#fff',
+                  },
+                  className: 'font-medium',
+                }}
+              />
+              <ToastProvider />
+              <WebVitals />
+              <CookieConsent />
+            </ErrorBoundary>
           </ThemeProvider>
         </body>
       </html>

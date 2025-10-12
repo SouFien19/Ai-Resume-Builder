@@ -65,11 +65,6 @@ const navigationData = {
       url: "/dashboard/analytics",
       icon: BarChart3,
     },
-    {
-      title: "Settings",
-      url: "/dashboard/settings",
-      icon: Settings,
-    },
   ],
   projects: [
     {

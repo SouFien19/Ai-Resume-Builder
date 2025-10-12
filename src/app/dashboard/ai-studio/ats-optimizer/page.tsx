@@ -32,7 +32,11 @@ import {
   X,
   Shield,
   Database,
-  Cloud
+  Cloud,
+  BarChart3,
+  Key,
+  XCircle,
+  TrendingUp
 } from 'lucide-react';
 
 // Particle Background Component
@@ -283,8 +287,41 @@ type JobSuggestion = {
 
 type ATSAnalysis = { 
   score: number; 
-  missingKeywords: string[]; 
-  recommendations: string; 
+  categoryScores?: {
+    contactInfo: number;
+    workExperience: number;
+    education: number;
+    skills: number;
+    formatting: number;
+    keywords: number;
+  };
+  keywordAnalysis?: {
+    totalKeywords: number;
+    matchedKeywords: string[];
+    missingKeywords: string[];
+    matchPercentage: number;
+  };
+  atsCompatibility?: {
+    hasProblems: boolean;
+    issues: string[];
+    warnings: string[];
+    goodPoints: string[];
+  };
+  recommendations: Array<{
+    priority: "HIGH" | "MEDIUM" | "LOW";
+    category: string;
+    issue: string;
+    action: string;
+    impact: string;
+  }> | string[];
+  sectionAnalysis?: {
+    summary: { status: "good" | "needs-work" | "missing"; feedback: string };
+    experience: { status: "good" | "needs-work" | "missing"; feedback: string };
+    education: { status: "good" | "needs-work" | "missing"; feedback: string };
+    skills: { status: "good" | "needs-work" | "missing"; feedback: string };
+  };
+  // Legacy fields for backward compatibility
+  missingKeywords?: string[]; 
 };
 
 type RawJobSuggestion = Partial<Omit<JobSuggestion, "keywords">> & {
@@ -385,16 +422,22 @@ export default function ATSOptimizerPage() {
     autoTable(doc, {
     startY: getNextTableStartY(40),
         head: [['Missing Keywords']],
-        body: missingKeywords.length > 0 ? missingKeywords.map(k => [k]) : [['Great! No critical keywords are missing.']],
+        body: (missingKeywords && missingKeywords.length > 0) ? missingKeywords.map(k => [k]) : [['Great! No critical keywords are missing.']],
         theme: 'striped',
         headStyles: { fillColor: [249, 115, 22] },
     });
 
     // Recommendations
+    const recommendationsText = typeof recommendations === 'string' 
+      ? recommendations 
+      : Array.isArray(recommendations) && recommendations.length > 0 && typeof recommendations[0] === 'object'
+      ? recommendations.map((r: any) => `[${r.priority}] ${r.issue}\n${r.action}`).join('\n\n')
+      : JSON.stringify(recommendations);
+    
     autoTable(doc, {
     startY: getNextTableStartY(40),
         head: [['Actionable Recommendations']],
-        body: [[recommendations]],
+        body: [[recommendationsText]],
         theme: 'grid',
         headStyles: { fillColor: [20, 184, 166] },
     didParseCell: (data: AutoTableCellData) => {
@@ -1256,11 +1299,162 @@ ${job.keywords.join(', ')}`;
                         </div>
                       </div>
 
-                      {/* Missing Keywords Section */}
+                      {/* Category Scores Breakdown */}
+                      {result.categoryScores && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.6 }}
+                          className="space-y-4"
+                        >
+                          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                            <BarChart3 className="h-5 w-5 text-blue-400" />
+                            Score Breakdown
+                          </h3>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {Object.entries(result.categoryScores).map(([key, value], i) => (
+                              <motion.div
+                                key={key}
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.7 + (i * 0.1) }}
+                                className="bg-neutral-800 border border-neutral-700 rounded-xl p-4"
+                              >
+                                <div className="text-sm text-neutral-400 mb-2 capitalize">
+                                  {key.replace(/([A-Z])/g, ' $1').trim()}
+                                </div>
+                                <div className="flex items-end gap-2">
+                                  <span className={`text-2xl font-bold ${
+                                    value >= 80 ? 'text-green-400' : 
+                                    value >= 60 ? 'text-yellow-400' : 
+                                    'text-red-400'
+                                  }`}>
+                                    {value}%
+                                  </span>
+                                </div>
+                                <div className="mt-2 w-full bg-neutral-700 rounded-full h-2 overflow-hidden">
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${value}%` }}
+                                    transition={{ duration: 1, delay: 0.8 + (i * 0.1) }}
+                                    className={`h-full ${
+                                      value >= 80 ? 'bg-green-500' : 
+                                      value >= 60 ? 'bg-yellow-500' : 
+                                      'bg-red-500'
+                                    }`}
+                                  />
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {/* Keyword Analysis */}
+                      {result.keywordAnalysis && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.8 }}
+                          className="space-y-4"
+                        >
+                          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                            <Key className="h-5 w-5 text-purple-400" />
+                            Keyword Match Analysis
+                          </h3>
+                          <div className="grid md:grid-cols-2 gap-4">
+                            <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-6">
+                              <div className="text-center">
+                                <div className="text-4xl font-bold bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+                                  {result.keywordAnalysis.matchPercentage}%
+                                </div>
+                                <div className="text-sm text-neutral-400 mt-2">
+                                  Keywords Matched ({result.keywordAnalysis.matchedKeywords.length}/{result.keywordAnalysis.totalKeywords})
+                                </div>
+                              </div>
+                            </div>
+                            <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-6">
+                              <div className="text-center">
+                                <div className="text-4xl font-bold text-amber-400">
+                                  {result.keywordAnalysis.missingKeywords.length}
+                                </div>
+                                <div className="text-sm text-neutral-400 mt-2">
+                                  Keywords to Add
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {/* ATS Compatibility Check */}
+                      {result.atsCompatibility && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.9 }}
+                          className="space-y-4"
+                        >
+                          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                            <Shield className="h-5 w-5 text-cyan-400" />
+                            ATS Compatibility
+                          </h3>
+                          <div className="space-y-3">
+                            {result.atsCompatibility.issues.length > 0 && (
+                              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+                                <div className="flex items-start gap-3">
+                                  <XCircle className="h-5 w-5 text-red-400 mt-0.5" />
+                                  <div>
+                                    <div className="font-semibold text-red-300 mb-2">Critical Issues</div>
+                                    <ul className="space-y-1 text-sm text-red-200">
+                                      {result.atsCompatibility.issues.map((issue, i) => (
+                                        <li key={i}>• {issue}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            {result.atsCompatibility.warnings.length > 0 && (
+                              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+                                <div className="flex items-start gap-3">
+                                  <AlertCircle className="h-5 w-5 text-yellow-400 mt-0.5" />
+                                  <div>
+                                    <div className="font-semibold text-yellow-300 mb-2">Warnings</div>
+                                    <ul className="space-y-1 text-sm text-yellow-200">
+                                      {result.atsCompatibility.warnings.map((warning, i) => (
+                                        <li key={i}>• {warning}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            {result.atsCompatibility.goodPoints.length > 0 && (
+                              <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4">
+                                <div className="flex items-start gap-3">
+                                  <CheckCircle className="h-5 w-5 text-green-400 mt-0.5" />
+                                  <div>
+                                    <div className="font-semibold text-green-300 mb-2">Good Practices</div>
+                                    <ul className="space-y-1 text-sm text-green-200">
+                                      {result.atsCompatibility.goodPoints.map((point, i) => (
+                                        <li key={i}>• {point}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {/* Missing Keywords Section (Legacy) */}
+                      {(result.missingKeywords || result.keywordAnalysis?.missingKeywords) && (
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.7 }}
+                        transition={{ delay: 1.0 }}
                         className="space-y-4"
                       >
                         <div className="flex items-center gap-3">
@@ -1268,7 +1462,7 @@ ${job.keywords.join(', ')}`;
                           <h3 className="text-xl font-bold text-white">Missing Keywords</h3>
                         </div>
                         
-                        {result.missingKeywords.length > 0 ? (
+                        {(result.missingKeywords && result.missingKeywords.length > 0) ? (
                           <div className="flex flex-wrap gap-2">
                             {result.missingKeywords.map((keyword, i) => (
                               <motion.span
@@ -1289,12 +1483,13 @@ ${job.keywords.join(', ')}`;
                           </div>
                         )}
                       </motion.div>
+                      )}
 
-                      {/* Recommendations Section */}
+                      {/* Recommendations Section - Priority-Based */}
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.9 }}
+                        transition={{ delay: 1.1 }}
                         className="space-y-4"
                       >
                         <div className="flex items-center gap-3">
@@ -1302,11 +1497,103 @@ ${job.keywords.join(', ')}`;
                           <h3 className="text-xl font-bold text-white">Recommendations</h3>
                         </div>
                         
-                        <div className="bg-neutral-800 border border-neutral-700 rounded-2xl p-6">
-                          <div className="prose prose-sm prose-invert max-w-none prose-p:text-neutral-300 prose-strong:text-white prose-ul:list-disc prose-ul:pl-5">
-                            <div className="whitespace-pre-wrap">{result.recommendations}</div>
+                        {Array.isArray(result.recommendations) && result.recommendations.length > 0 && typeof result.recommendations[0] === 'object' ? (
+                          <div className="space-y-4">
+                            {/* HIGH Priority */}
+                            {result.recommendations.filter((r: any) => r.priority === 'HIGH').length > 0 && (
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="px-2 py-1 bg-red-500/20 border border-red-500/40 rounded-md">
+                                    <span className="text-xs font-bold text-red-300">🔥 HIGH PRIORITY</span>
+                                  </div>
+                                </div>
+                                {result.recommendations.filter((r: any) => r.priority === 'HIGH').map((rec: any, i: number) => (
+                                  <motion.div
+                                    key={i}
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: 1.2 + (i * 0.1) }}
+                                    className="bg-red-500/10 border-l-4 border-red-500 rounded-xl p-4"
+                                  >
+                                    <div className="font-semibold text-white mb-2">{rec.issue}</div>
+                                    <div className="text-sm text-neutral-300 mb-2">{rec.action}</div>
+                                    {rec.impact && (
+                                      <div className="text-xs text-neutral-400 flex items-start gap-2">
+                                        <TrendingUp className="h-3 w-3 mt-0.5 text-red-400" />
+                                        <span>{rec.impact}</span>
+                                      </div>
+                                    )}
+                                  </motion.div>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* MEDIUM Priority */}
+                            {result.recommendations.filter((r: any) => r.priority === 'MEDIUM').length > 0 && (
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="px-2 py-1 bg-yellow-500/20 border border-yellow-500/40 rounded-md">
+                                    <span className="text-xs font-bold text-yellow-300">⚠️ MEDIUM PRIORITY</span>
+                                  </div>
+                                </div>
+                                {result.recommendations.filter((r: any) => r.priority === 'MEDIUM').map((rec: any, i: number) => (
+                                  <motion.div
+                                    key={i}
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: 1.3 + (i * 0.1) }}
+                                    className="bg-yellow-500/10 border-l-4 border-yellow-500 rounded-xl p-4"
+                                  >
+                                    <div className="font-semibold text-white mb-2">{rec.issue}</div>
+                                    <div className="text-sm text-neutral-300 mb-2">{rec.action}</div>
+                                    {rec.impact && (
+                                      <div className="text-xs text-neutral-400 flex items-start gap-2">
+                                        <TrendingUp className="h-3 w-3 mt-0.5 text-yellow-400" />
+                                        <span>{rec.impact}</span>
+                                      </div>
+                                    )}
+                                  </motion.div>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* LOW Priority */}
+                            {result.recommendations.filter((r: any) => r.priority === 'LOW').length > 0 && (
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="px-2 py-1 bg-blue-500/20 border border-blue-500/40 rounded-md">
+                                    <span className="text-xs font-bold text-blue-300">💡 LOW PRIORITY</span>
+                                  </div>
+                                </div>
+                                {result.recommendations.filter((r: any) => r.priority === 'LOW').map((rec: any, i: number) => (
+                                  <motion.div
+                                    key={i}
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: 1.4 + (i * 0.1) }}
+                                    className="bg-blue-500/10 border-l-4 border-blue-500 rounded-xl p-4"
+                                  >
+                                    <div className="font-semibold text-white mb-2">{rec.issue}</div>
+                                    <div className="text-sm text-neutral-300 mb-2">{rec.action}</div>
+                                    {rec.impact && (
+                                      <div className="text-xs text-neutral-400 flex items-start gap-2">
+                                        <TrendingUp className="h-3 w-3 mt-0.5 text-blue-400" />
+                                        <span>{rec.impact}</span>
+                                      </div>
+                                    )}
+                                  </motion.div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        </div>
+                        ) : (
+                          /* Legacy string recommendations */
+                          <div className="bg-neutral-800 border border-neutral-700 rounded-2xl p-6">
+                            <div className="prose prose-sm prose-invert max-w-none prose-p:text-neutral-300 prose-strong:text-white prose-ul:list-disc prose-ul:pl-5">
+                              <div className="whitespace-pre-wrap">{typeof result.recommendations === 'string' ? result.recommendations : JSON.stringify(result.recommendations, null, 2)}</div>
+                            </div>
+                          </div>
+                        )}
                       </motion.div>
 
                       {/* Action Buttons */}
@@ -1454,7 +1741,7 @@ ${job.keywords.join(', ')}`;
                   </div>
                   <div className="bg-neutral-800 p-6 rounded-2xl border border-neutral-700">
                     <h3 className="font-bold text-neutral-300 mb-2">Missing Keywords</h3>
-                    {result.missingKeywords.length > 0 ? (
+                    {(result.missingKeywords && result.missingKeywords.length > 0) ? (
                       <p className="text-5xl font-bold text-orange-500">{result.missingKeywords.length}</p>
                     ) : (
                       <p className="text-3xl font-bold text-green-500">None!</p>
@@ -1465,7 +1752,13 @@ ${job.keywords.join(', ')}`;
                 <div className="space-y-4">
                   <h3 className="text-xl font-bold text-white">Actionable Recommendations</h3>
                   <div className="prose prose-invert max-w-none p-6 bg-neutral-800 rounded-2xl border border-neutral-700 h-64 overflow-y-auto">
-                    <div className="whitespace-pre-wrap text-neutral-300">{result.recommendations}</div>
+                    <div className="whitespace-pre-wrap text-neutral-300">
+                      {typeof result.recommendations === 'string' 
+                        ? result.recommendations 
+                        : Array.isArray(result.recommendations) && result.recommendations.length > 0 && typeof result.recommendations[0] === 'object'
+                        ? result.recommendations.map((r: any, i: number) => `[${r.priority}] ${r.issue}\n${r.action}`).join('\n\n')
+                        : JSON.stringify(result.recommendations, null, 2)}
+                    </div>
                   </div>
                 </div>
               </div>

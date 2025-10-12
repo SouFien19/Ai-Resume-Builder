@@ -5,11 +5,11 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 
 const colors = [
-  "bg-blue-500",
-  "bg-purple-500",
   "bg-pink-500",
-  "bg-indigo-500",
-  "bg-sky-500",
+  "bg-orange-500",
+  "bg-purple-500",
+  "bg-pink-400",
+  "bg-orange-400",
 ];
 
 const generateBlobs = (count: number) => {
@@ -42,12 +42,13 @@ export default function AnimatedGradientBackground() {
   );
 
   useEffect(() => {
-    setBlobs(generateBlobs(5));
+    setBlobs(generateBlobs(6));
   }, []);
 
   return (
     <div className="absolute inset-0 z-0 overflow-hidden">
       <div className="relative w-full h-full">
+        {/* Main animated blobs */}
         {blobs &&
           blobs.map((blob) => (
             <motion.div
@@ -60,13 +61,31 @@ export default function AnimatedGradientBackground() {
                 blob.color
               )}
               style={{
-                width: "30vw",
-                height: "30vw",
-                minWidth: "300px",
-                minHeight: "300px",
+                width: "35vw",
+                height: "35vw",
+                minWidth: "350px",
+                minHeight: "350px",
               }}
             />
           ))}
+        
+        {/* Additional fixed gradient blobs for depth */}
+        <motion.div
+          className="absolute top-20 left-10 w-96 h-96 bg-gradient-to-br from-pink-500/20 to-orange-500/20 rounded-full blur-3xl"
+          animate={{
+            scale: [1, 1.2, 1],
+            opacity: [0.2, 0.4, 0.2],
+          }}
+          transition={{ duration: 8, repeat: Infinity }}
+        />
+        <motion.div
+          className="absolute bottom-20 right-10 w-[500px] h-[500px] bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full blur-3xl"
+          animate={{
+            scale: [1.2, 1, 1.2],
+            opacity: [0.4, 0.2, 0.4],
+          }}
+          transition={{ duration: 10, repeat: Infinity }}
+        />
       </div>
     </div>
   );

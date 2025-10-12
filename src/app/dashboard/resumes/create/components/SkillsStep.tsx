@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SkillsInput } from "@/components/forms/SkillsInput";
 import { FileText, Sparkles, Loader2, User, Wand2, Gauge } from "lucide-react";
 
 interface SkillsStepProps {
@@ -37,6 +38,7 @@ interface SkillsStepProps {
 const SkillsStep = memo(function SkillsStep({
   target,
   skills,
+  setSkills,
   addSkill,
   removeSkill,
   summary,
@@ -246,39 +248,12 @@ const SkillsStep = memo(function SkillsStep({
           </Button>
         </div>
         
-        {skills.length > 0 ? (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {skills.map(s => (
-              <Badge 
-                key={s} 
-                variant="outline" 
-                className="cursor-pointer bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/30 text-green-300 hover:bg-red-500/20 hover:border-red-400/50 transition-all duration-200" 
-                onClick={() => removeSkill(s)}
-              >
-                {s} ✕
-              </Badge>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-neutral-400">
-            <p className="text-sm mb-2">No skills added yet</p>
-            <p className="text-xs">Select from suggestions above or add custom skills below</p>
-          </div>
-        )}
-
-        <Input 
-          placeholder="Type a custom skill and press Enter..." 
-          className="bg-neutral-900/60 border-neutral-600/50 text-white placeholder:text-neutral-400 focus:border-green-400 focus:ring-2 focus:ring-green-400/20 transition-all"
-          onKeyDown={e => {
-            if (e.key === "Enter") { 
-              e.preventDefault(); 
-              const val = (e.target as HTMLInputElement).value.trim(); 
-              if (val) { 
-                addSkill(val); 
-                (e.target as HTMLInputElement).value = ""; 
-              } 
-            }
-          }} 
+        <SkillsInput
+          value={skills}
+          onChange={setSkills}
+          maxSkills={20}
+          placeholder="ex: JavaScript"
+          className="mb-4"
         />
       </div>
 

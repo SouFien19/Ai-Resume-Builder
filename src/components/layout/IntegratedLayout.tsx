@@ -1,5 +1,6 @@
 "use client"
 import * as React from "react"
+import Link from "next/link"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -8,7 +9,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { 
   Home, 
-  Settings, 
   BarChart3, 
   PanelLeftClose,
   Menu,
@@ -23,7 +23,7 @@ import {
 import { cn } from "@/lib/utils"
 import { UserButton, useUser } from "@clerk/nextjs"
 import { SiReactiveresume } from "react-icons/si"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ModeToggle } from "@/components/ui/mode-toggle"
 import { GlobalSearch } from "@/components/shared/GlobalSearch"
@@ -86,7 +86,6 @@ const menuItems = [
 
 function SidebarNav({ isCollapsed }: { isCollapsed: boolean }) {
   const pathname = usePathname()
-  const router = useRouter()
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -136,13 +135,9 @@ function SidebarNav({ isCollapsed }: { isCollapsed: boolean }) {
           )
 
           return (
-            <a
+            <Link
               key={item.href}
               href={item.href}
-              onClick={(e) => {
-                e.preventDefault()
-                router.push(item.href)
-              }}
               className="block"
             >
               {isCollapsed ? (
@@ -156,7 +151,7 @@ function SidebarNav({ isCollapsed }: { isCollapsed: boolean }) {
               ) : (
                 linkContent
               )}
-            </a>
+            </Link>
           )
         })}
       </nav>
@@ -171,7 +166,6 @@ interface RecentResume {
 }
 
 function RecentItems({ isCollapsed }: { isCollapsed: boolean }) {
-  const router = useRouter()
   const [recentResumes, setRecentResumes] = React.useState<RecentResume[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
 
@@ -219,23 +213,22 @@ function RecentItems({ isCollapsed }: { isCollapsed: boolean }) {
       </div>
       <div className="space-y-1">
         {recentResumes.map((resume) => (
-          <motion.a
+          <Link
             key={resume._id}
             href={`/dashboard/resumes/${resume._id}/edit`}
-            onClick={(e) => {
-              e.preventDefault()
-              router.push(`/dashboard/resumes/${resume._id}/edit`)
-            }}
-            whileHover={{ x: 4 }}
-            transition={{ duration: 0.2 }}
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-neutral-400 hover:bg-neutral-800/50 hover:text-white transition-colors group cursor-pointer"
           >
-            <Clock className="h-4 w-4 flex-shrink-0" />
-            <span className="flex-1 truncate">{resume.title || 'Untitled Resume'}</span>
-            <span className="text-xs text-neutral-500 group-hover:text-neutral-400">
-              {formatTimeAgo(resume.updatedAt)}
-            </span>
-          </motion.a>
+            <motion.div
+              whileHover={{ x: 4 }}
+              transition={{ duration: 0.2 }}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-neutral-400 hover:bg-neutral-800/50 hover:text-white transition-colors group cursor-pointer"
+            >
+              <Clock className="h-4 w-4 flex-shrink-0" />
+              <span className="flex-1 truncate">{resume.title || 'Untitled Resume'}</span>
+              <span className="text-xs text-neutral-500 group-hover:text-neutral-400">
+                {formatTimeAgo(resume.updatedAt)}
+              </span>
+            </motion.div>
+          </Link>
         ))}
       </div>
     </div>
@@ -243,50 +236,7 @@ function RecentItems({ isCollapsed }: { isCollapsed: boolean }) {
 }
 
 function SidebarFooter({ isCollapsed }: { isCollapsed: boolean }) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const isActive = pathname === "/dashboard/settings"
-
-  const linkContent = (
-     <motion.div
-      whileHover={{ x: 4 }}
-      transition={{ duration: 0.2 }}
-      className={cn(
-        "flex items-center gap-3 rounded-xl px-3 py-3 text-neutral-300 transition-all hover:bg-neutral-800 hover:text-white group",
-        isActive && "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-white border-l-4 border-pink-500",
-        isCollapsed && "justify-center rounded-xl w-12 h-12 p-0"
-      )}
-    >
-      <Settings className="h-5 w-5" />
-      {!isCollapsed && <span className="font-medium">Settings</span>}
-      <div className="absolute inset-0 bg-gradient-to-r from-pink-500/5 to-orange-500/5 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity" />
-    </motion.div>
-  )
-
-  return (
-    <div className="mt-auto grid gap-2 p-2">
-       <TooltipProvider delayDuration={0}>
-         <a
-            href="/dashboard/settings"
-            onClick={(e) => {
-              e.preventDefault()
-              router.push("/dashboard/settings")
-            }}
-          >
-            {isCollapsed ? (
-              <Tooltip>
-                <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                <TooltipContent side="right" sideOffset={10} className="bg-neutral-800 text-white border-neutral-700">
-                  Settings
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              linkContent
-            )}
-          </a>
-      </TooltipProvider>
-    </div>
-  )
+  return null
 }
 
 export function IntegratedLayout({ children }: { children: React.ReactNode }) {
@@ -320,7 +270,7 @@ export function IntegratedLayout({ children }: { children: React.ReactNode }) {
       <SidebarParticles />
       <div className="flex h-full flex-col gap-2 relative z-10">
         <div className="flex h-16 items-center border-b border-neutral-800 px-6">
-          <a href="/dashboard" className="flex items-center gap-2 font-semibold">
+          <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
             <div className="p-2 bg-gradient-to-r from-pink-500 to-orange-500 rounded-lg">
               <SiReactiveresume className="h-5 w-5 text-white" />
             </div>
@@ -333,7 +283,7 @@ export function IntegratedLayout({ children }: { children: React.ReactNode }) {
                 ResumeCraft
               </motion.span>
             )}
-          </a>
+          </Link>
           {!isCollapsed && (
             <Button
               variant="ghost"
@@ -396,12 +346,12 @@ export function IntegratedLayout({ children }: { children: React.ReactNode }) {
         >
           <div className="flex h-full flex-col gap-2">
             <div className="flex h-16 items-center border-b border-neutral-800 px-6 justify-between">
-              <a href="/dashboard" className="flex items-center gap-2 font-semibold">
+              <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
                 <div className="p-2 bg-gradient-to-r from-pink-500 to-orange-500 rounded-lg">
                   <SiReactiveresume className="h-5 w-5 text-white" />
                 </div>
                 <span className="text-lg bg-gradient-to-r from-pink-400 to-orange-400 bg-clip-text text-transparent">ResumeCraft</span>
-              </a>
+              </Link>
               <Button
                 variant="ghost"
                 size="icon"

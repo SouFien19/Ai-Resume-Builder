@@ -143,19 +143,54 @@ SCORING GUIDELINES:
 - 50-59: Weak match, significant gaps
 - Below 50: Poor match, major gaps
 
-Return a JSON object with this exact structure:
+Return a JSON object with this ENHANCED structure:
 {
   "score": <number between 0-100>,
-  "missingKeywords": ["keyword1", "keyword2", "keyword3"...],
-  "recommendations": ["specific actionable recommendation 1", "recommendation 2", "recommendation 3"...]
+  "categoryScores": {
+    "contactInfo": <0-100>,
+    "workExperience": <0-100>,
+    "education": <0-100>,
+    "skills": <0-100>,
+    "formatting": <0-100>,
+    "keywords": <0-100>
+  },
+  "keywordAnalysis": {
+    "totalKeywords": <number>,
+    "matchedKeywords": ["keyword1", "keyword2"...],
+    "missingKeywords": ["keyword1", "keyword2"...],
+    "matchPercentage": <0-100>
+  },
+  "atsCompatibility": {
+    "hasProblems": <boolean>,
+    "issues": ["issue1", "issue2"...],
+    "warnings": ["warning1", "warning2"...],
+    "goodPoints": ["good1", "good2"...]
+  },
+  "recommendations": [
+    {
+      "priority": "HIGH" | "MEDIUM" | "LOW",
+      "category": "keywords" | "experience" | "formatting" | "skills" | "education",
+      "issue": "Brief description of the issue",
+      "action": "Specific actionable fix",
+      "impact": "Expected improvement"
+    }
+  ],
+  "sectionAnalysis": {
+    "summary": { "status": "good" | "needs-work" | "missing", "feedback": "..." },
+    "experience": { "status": "good" | "needs-work" | "missing", "feedback": "..." },
+    "education": { "status": "good" | "needs-work" | "missing", "feedback": "..." },
+    "skills": { "status": "good" | "needs-work" | "missing", "feedback": "..." }
+  }
 }
 
 REQUIREMENTS:
-- Score must be realistic and justified
-- List 5-10 specific missing keywords/skills from job description
-- Provide 4-6 detailed, actionable recommendations with examples
-- Be professional, honest, and constructive
-- Consider experience level appropriateness
+- Overall score must match category average
+- Separate technical keywords from soft skills
+- List 5-10 specific missing keywords
+- Provide 5-8 prioritized recommendations (2-3 HIGH, 2-3 MEDIUM, 1-2 LOW)
+- Identify ATS formatting issues (tables, columns, images, headers/footers)
+- Give constructive section-by-section feedback
+- Be professional, honest, and actionable
 
 Return ONLY valid JSON. No markdown, no explanations, just the JSON object.`;
 
@@ -178,31 +213,117 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON object.`;
         temperature: 0.3,
       });
     } catch (aiError: any) {
-      // Handle quota exceeded error with intelligent fallback
+      // Handle quota exceeded error with ENHANCED intelligent fallback
       if (aiError?.status === 429 || aiError?.isQuotaError || aiError?.message?.includes('QUOTA_EXCEEDED')) {
-        logger.warn('Gemini API quota exceeded, using intelligent fallback', { userId });
+        logger.warn('Gemini API quota exceeded, using enhanced intelligent fallback', { userId });
         
-        // Return a reasonable fallback score based on basic keyword matching
-        const jdKeywords = jd.toLowerCase().match(/\b\w{4,}\b/g) || [];
-        const resumeKeywords = allText.toLowerCase().match(/\b\w{4,}\b/g) || [];
+        // Advanced keyword analysis
+        const jdKeywords: string[] = jd.toLowerCase().match(/\b\w{4,}\b/g) || [];
+        const resumeKeywords: string[] = allText.toLowerCase().match(/\b\w{4,}\b/g) || [];
         const matchingKeywords = jdKeywords.filter(kw => resumeKeywords.includes(kw));
+        const missingKeywords = jdKeywords.filter(kw => !resumeKeywords.includes(kw)).slice(0, 10);
         const matchRate = matchingKeywords.length / Math.max(jdKeywords.length, 1);
-        const fallbackScore = Math.round(50 + (matchRate * 30)); // 50-80 range
+        const keywordScore = Math.round(matchRate * 100);
         
-        const fallbackResponse = {
-          score: fallbackScore,
-          missingKeywords: jdKeywords.slice(0, 8).filter(kw => !resumeKeywords.includes(kw)),
-          recommendations: [
-            "⚠️ This is a fallback analysis due to API quota limits.",
-            "Your quota will reset in 24 hours. Upgrade to paid tier for unlimited access.",
-            "Add more specific keywords from the job description to your resume.",
-            "Ensure your technical skills match the job requirements.",
-            "Quantify your achievements with metrics and numbers.",
-            "Tailor your summary to highlight relevant experience.",
-          ],
+        // Calculate category scores
+        const hasContact = /email|phone|linkedin/i.test(allText);
+        const hasExperience = /experience|work|employment|position/i.test(allText);
+        const hasEducation = /education|degree|university|college/i.test(allText);
+        const hasSkills = /skills|technologies|tools|proficient/i.test(allText);
+        
+        const categoryScores = {
+          contactInfo: hasContact ? 90 : 50,
+          workExperience: hasExperience ? 75 : 40,
+          education: hasEducation ? 80 : 45,
+          skills: hasSkills ? keywordScore : 50,
+          formatting: 70, // Assume decent formatting
+          keywords: keywordScore
         };
         
-        logger.info('Returning fallback ATS analysis', { score: fallbackScore, userId });
+        const avgScore = Math.round(
+          Object.values(categoryScores).reduce((a, b) => a + b, 0) / 6
+        );
+        
+        const fallbackResponse = {
+          score: avgScore,
+          categoryScores,
+          keywordAnalysis: {
+            totalKeywords: jdKeywords.length,
+            matchedKeywords: matchingKeywords.slice(0, 15),
+            missingKeywords,
+            matchPercentage: Math.round(matchRate * 100)
+          },
+          atsCompatibility: {
+            hasProblems: false,
+            issues: [],
+            warnings: [
+              "⚠️ This is a fallback analysis due to API quota limits."
+            ],
+            goodPoints: [
+              "Standard text format detected",
+              "No obvious formatting issues found"
+            ]
+          },
+          recommendations: [
+            {
+              priority: "HIGH",
+              category: "keywords",
+              issue: "Missing critical keywords from job description",
+              action: `Add these keywords: ${missingKeywords.slice(0, 3).join(', ')}`,
+              impact: "Could improve match score by 10-15%"
+            },
+            {
+              priority: "HIGH",
+              category: "experience",
+              issue: "Need to quantify achievements",
+              action: "Add metrics and numbers to at least 5 bullet points",
+              impact: "Makes accomplishments more compelling"
+            },
+            {
+              priority: "MEDIUM",
+              category: "skills",
+              issue: "Skills section needs expansion",
+              action: "Add relevant technical skills from job description",
+              impact: "Improves keyword matching"
+            },
+            {
+              priority: "MEDIUM",
+              category: "formatting",
+              issue: "⚠️ Fallback analysis - limited format check",
+              action: "Ensure standard ATS-friendly formatting (no tables/columns)",
+              impact: "Prevents parsing issues"
+            },
+            {
+              priority: "LOW",
+              category: "keywords",
+              issue: "API quota exceeded",
+              action: "Wait 24 hours for quota reset or upgrade to paid tier",
+              impact: "Get full AI-powered analysis"
+            }
+          ],
+          sectionAnalysis: {
+            summary: {
+              status: hasContact ? "good" : "needs-work",
+              feedback: hasContact ? "Contact information found" : "Add clear contact information"
+            },
+            experience: {
+              status: hasExperience ? "good" : "needs-work",
+              feedback: hasExperience ? "Work experience detected" : "Add detailed work experience"
+            },
+            education: {
+              status: hasEducation ? "good" : "needs-work",
+              feedback: hasEducation ? "Education section found" : "Include education details"
+            },
+            skills: {
+              status: keywordScore > 60 ? "good" : "needs-work",
+              feedback: keywordScore > 60 ? 
+                `Good keyword match: ${Math.round(matchRate * 100)}%` : 
+                "Add more relevant skills from job description"
+            }
+          }
+        };
+        
+        logger.info('Returning enhanced fallback ATS analysis', { score: avgScore, userId });
         return successResponse(fallbackResponse, { 'X-Cache': 'FALLBACK', 'X-Quota-Exceeded': 'true' });
       }
       

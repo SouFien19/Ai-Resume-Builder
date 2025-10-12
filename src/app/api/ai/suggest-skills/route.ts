@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from "@clerk/nextjs/server";
 import { generateText } from '@/lib/ai/gemini';
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
+import { getSuggestedSkills, searchSkills } from "@/lib/ai/skill-suggestions";
 import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
@@ -81,8 +82,70 @@ Return only the JSON array, no other text.`;
 
   } catch (error) {
     console.error('Skills suggestion error:', error);
+    
+    // Fallback to rule-based suggestions if provided
+    const body = await req.json().catch(() => ({}));
+    const { existingSkills } = body;
+    
+    if (existingSkills && Array.isArray(existingSkills)) {
+      console.log('[AI Suggest Skills] Using rule-based fallback');
+      const suggestions = getSuggestedSkills(existingSkills, 10);
+      return NextResponse.json({ skills: suggestions });
+    }
+    
     return NextResponse.json(
       { error: 'Failed to generate skills suggestions' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * GET /api/ai/suggest-skills?query=react&limit=10&existingSkills=Python,Django
+ * Search for skills (autocomplete) or get suggestions based on existing skills
+ * 
+ * Query params:
+ * - query: string (search query for autocomplete)
+ * - limit: number (max results, default: 10)
+ * - existingSkills: string (comma-separated list for contextual suggestions)
+ * 
+ * Response:
+ * {
+ *   results: string[],
+ *   count: number
+ * }
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const query = searchParams.get("query") || "";
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const existingSkillsParam = searchParams.get("existingSkills") || "";
+    
+    // If existingSkills provided, return contextual suggestions
+    if (existingSkillsParam) {
+      const existingSkills = existingSkillsParam.split(",").map(s => s.trim()).filter(Boolean);
+      const suggestions = getSuggestedSkills(existingSkills, limit);
+      
+      return NextResponse.json({
+        results: suggestions,
+        count: suggestions.length,
+        source: "contextual"
+      });
+    }
+    
+    // Otherwise, do autocomplete search
+    const results = searchSkills(query, limit);
+
+    return NextResponse.json({
+      results,
+      count: results.length,
+      source: "search"
+    });
+  } catch (error) {
+    console.error("[Skill Search API] Error:", error);
+    return NextResponse.json(
+      { error: "Failed to search skills" },
       { status: 500 }
     );
   }

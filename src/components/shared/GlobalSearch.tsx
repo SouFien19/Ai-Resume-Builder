@@ -18,7 +18,6 @@ import {
   Brain,
   Palette,
   BarChart3,
-  Settings,
   Home,
   Search,
   Clock,
@@ -130,11 +129,6 @@ export function GlobalSearch() {
             <CommandItem onSelect={() => handleSelect(() => router.push('/dashboard/analytics'))}>
               <BarChart3 className="mr-2 h-4 w-4" />
               <span>Analytics</span>
-            </CommandItem>
-            <CommandItem onSelect={() => handleSelect(() => router.push('/dashboard/settings'))}>
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
-              <CommandShortcut>⌘,</CommandShortcut>
             </CommandItem>
           </CommandGroup>
 

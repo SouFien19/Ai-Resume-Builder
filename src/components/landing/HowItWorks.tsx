@@ -66,8 +66,14 @@ export default function HowItWorks() {
         </div>
 
         <div className="relative">
-          {/* Dotted line connector */}
-          <div className="absolute left-1/2 top-12 bottom-12 w-0.5 bg-gray-200 dark:bg-gray-700/50 hidden md:block" />
+          {/* Animated gradient line connector */}
+          <motion.div 
+            className="absolute left-1/2 top-12 bottom-12 w-1 bg-gradient-to-b from-pink-500 via-orange-500 to-purple-500 hidden md:block rounded-full opacity-30"
+            initial={{ height: 0 }}
+            whileInView={{ height: "calc(100% - 6rem)" }}
+            viewport={{ once: true }}
+            transition={{ duration: 1.5, ease: "easeOut" }}
+          />
 
           <motion.div
             variants={containerVariants}
@@ -87,20 +93,37 @@ export default function HowItWorks() {
                     index % 2 === 0 ? "md:order-1" : "md:order-3"
                   }`}
                 >
-                  <div className="text-center md:text-left">
+                  <motion.div 
+                    className="text-center md:text-left"
+                    whileHover={{ scale: 1.02 }}
+                    transition={{ duration: 0.2 }}
+                  >
                     <div className="flex items-center justify-center md:justify-start mb-4">
-                      <div className="flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-full border border-blue-200 dark:border-blue-800">
-                        <step.icon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <span className="ml-4 text-2xl font-bold text-gray-400 dark:text-gray-500">0{index + 1}</span>
+                      <motion.div 
+                        className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-pink-500 to-orange-500 rounded-2xl shadow-lg shadow-pink-500/30"
+                        whileHover={{ rotate: 5, scale: 1.1 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <step.icon className="w-8 h-8 text-white" />
+                      </motion.div>
+                      <span className="ml-4 text-3xl font-bold bg-gradient-to-r from-pink-500 to-orange-500 bg-clip-text text-transparent">0{index + 1}</span>
                     </div>
-                    <h3 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-2">{step.title}</h3>
-                    <p className="text-gray-600 dark:text-gray-400">{step.description}</p>
-                  </div>
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3">{step.title}</h3>
+                    <p className="text-gray-600 dark:text-gray-400 leading-relaxed">{step.description}</p>
+                  </motion.div>
                 </div>
 
                 <div className="md:w-2/12 md:order-2 flex justify-center">
-                  <div className="w-8 h-8 bg-white dark:bg-gray-800 border-4 border-blue-500 rounded-full z-10" />
+                  <motion.div 
+                    className="w-12 h-12 bg-gradient-to-br from-pink-500 to-orange-500 rounded-full z-10 flex items-center justify-center shadow-lg shadow-pink-500/30"
+                    initial={{ scale: 0 }}
+                    whileInView={{ scale: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: index * 0.2, type: "spring", stiffness: 200 }}
+                    whileHover={{ scale: 1.2, rotate: 180 }}
+                  >
+                    <div className="w-6 h-6 bg-white rounded-full" />
+                  </motion.div>
                 </div>
 
                 <div className={`md:w-5/12 ${

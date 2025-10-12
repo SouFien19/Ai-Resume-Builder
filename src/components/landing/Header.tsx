@@ -35,7 +35,7 @@ export default function Header() {
     <>
       {isSignedIn ? (
         <Link href="/dashboard" passHref>
-          <Button className="text-sm bg-blue-600 hover:bg-blue-700">
+          <Button className="text-sm bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600">
             Dashboard
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
@@ -46,7 +46,7 @@ export default function Header() {
             <Button variant="ghost" className="text-sm">Sign In</Button>
           </Link>
           <Link href="/dashboard" passHref>
-            <Button className="text-sm bg-blue-600 hover:bg-blue-700">Get Started</Button>
+            <Button className="text-sm bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600">Get Started</Button>
           </Link>
         </>
       )}
@@ -63,7 +63,7 @@ export default function Header() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2">
-            <SiReactiveresume className="h-6 w-6 text-blue-600" />
+            <SiReactiveresume className="h-6 w-6 text-pink-600" />
             <span className="font-bold text-lg text-gray-900 dark:text-gray-50">ResumeCraft</span>
           </Link>
 
@@ -72,7 +72,7 @@ export default function Header() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-500 transition-colors"
+                className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-pink-600 dark:hover:text-pink-500 transition-colors"
               >
                 {link.label}
               </Link>

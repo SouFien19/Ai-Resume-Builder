@@ -2,11 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getModel } from "@/lib/ai/gemini";
 import { trackAIRequest } from "@/lib/ai/track-analytics";
+import { checkRateLimit, aiRateLimiter } from "@/lib/middleware/rateLimiter";
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   try {
     const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check rate limit (10 requests per minute)
+    const rateLimitResult = await checkRateLimit(aiRateLimiter, `ai:${userId}`, 10);
+    if (!rateLimitResult.success) {
+      return NextResponse.json(rateLimitResult.error, {
+        status: 429,
+        headers: rateLimitResult.headers,
+      });
+    }
+
     const { messages } = await req.json();
     const model = getModel("gemini-1.5-flash");
     if (!model) return NextResponse.json({ text: "AI is not configured." }, { status: 200 });

@@ -9,7 +9,7 @@ import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminHeader from "@/components/admin/AdminHeader";
 
 export const metadata = {
-  title: "Admin Dashboard | AI Resume Builder",
+  title: "Admin Dashboard",
   description: "Admin control panel for managing users, analytics, and system settings",
 };
 

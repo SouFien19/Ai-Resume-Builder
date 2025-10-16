@@ -6,6 +6,10 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api/webhooks(.*)',
+  '/manifest.json',
+  '/favicon.ico',
+  '/robots.txt',
+  '/sitemap.xml',
 ]);
 
 const isAdminRoute = createRouteMatcher([

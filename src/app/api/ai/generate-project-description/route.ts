@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
 import { trackAIRequest } from "@/lib/ai/track-analytics";
+import { checkRateLimit, aiRateLimiter } from "@/lib/middleware/rateLimiter";
 import crypto from "crypto";
 
 // Initialize Gemini AI with fallback to multiple environment variable names
@@ -43,6 +44,15 @@ export async function POST(req: NextRequest) {
         { success: false, error: "Unauthorized" },
         { status: 401 }
       );
+    }
+
+    // Check rate limit (10 requests per minute)
+    const rateLimitResult = await checkRateLimit(aiRateLimiter, `ai:${userId}`, 10);
+    if (!rateLimitResult.success) {
+      return NextResponse.json(rateLimitResult.error, {
+        status: 429,
+        headers: rateLimitResult.headers,
+      });
     }
 
     // ✅ Parse request body

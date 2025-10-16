@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { trackAIRequest } from "@/lib/ai/track-analytics";
+import { checkRateLimit, aiRateLimiter } from "@/lib/middleware/rateLimiter";
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   const { userId } = await auth();
+  
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Check rate limit (10 requests per minute)
+  const rateLimitResult = await checkRateLimit(aiRateLimiter, `ai:${userId}`, 10);
+  if (!rateLimitResult.success) {
+    return NextResponse.json(rateLimitResult.error, {
+      status: 429,
+      headers: rateLimitResult.headers,
+    });
+  }
+
   try {
     const contentType = req.headers.get("content-type") || "";
     if (!contentType.includes("multipart/form-data")) {

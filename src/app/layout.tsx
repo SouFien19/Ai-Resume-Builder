@@ -10,6 +10,7 @@ import ToastProvider from "@/components/providers/ToastProvider";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import CookieConsent from "@/components/CookieConsent";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 
 const fontSans = FontSans({
   subsets: ["latin"],
@@ -82,9 +83,40 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32", type: "image/x-icon" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
     shortcut: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    other: [
+      {
+        rel: "icon",
+        url: "/icons/icon-192x192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        rel: "icon",
+        url: "/icons/icon-512x512.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
+    ],
+  },
+  manifest: "/manifest.json",
+  // PWA specific metadata
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "ResumeCraft AI",
+  },
+  applicationName: "ResumeCraft AI",
+  other: {
+    "mobile-web-app-capable": "yes",
   },
 };
 
@@ -104,6 +136,22 @@ export default function RootLayout({
       afterSignUpUrl="/dashboard"
     >
       <html lang="en" suppressHydrationWarning>
+        <head>
+          {/* Favicons - Multiple sizes for all browsers */}
+          <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+          <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+          <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+          <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+          <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png" />
+          <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512x512.png" />
+          
+          {/* PWA Meta Tags */}
+          <meta name="theme-color" content="#3b82f6" />
+          <meta name="mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+          <meta name="apple-mobile-web-app-title" content="ResumeCraft AI" />
+        </head>
         <body
           suppressHydrationWarning
           className={cn(
@@ -140,6 +188,7 @@ export default function RootLayout({
               <ToastProvider />
               <WebVitals />
               <CookieConsent />
+              <PWAInstallPrompt />
             </ErrorBoundary>
           </ThemeProvider>
         </body>

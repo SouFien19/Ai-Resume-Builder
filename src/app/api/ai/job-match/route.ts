@@ -7,6 +7,7 @@ import JobMatch from "@/lib/database/models/JobMatch";
 import User from "@/lib/database/models/User";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
 import { trackAIRequest } from "@/lib/ai/track-analytics";
+import { checkRateLimit, aiRateLimiter } from "@/lib/middleware/rateLimiter";
 import crypto from "crypto";
 
 type Match = {
@@ -24,6 +25,15 @@ export async function POST(req: NextRequest) {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check rate limit (10 requests per minute)
+    const rateLimitResult = await checkRateLimit(aiRateLimiter, `ai:${userId}`, 10);
+    if (!rateLimitResult.success) {
+      return NextResponse.json(rateLimitResult.error, {
+        status: 429,
+        headers: rateLimitResult.headers,
+      });
     }
 
     const startTime = Date.now();

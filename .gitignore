@@ -141,3 +141,13 @@ generated/
 *.md
 !README.md
 !docs/**/*.md
+
+# PWA (Progressive Web App) files
+# Service worker and workbox files are auto-generated
+/public/sw.js
+/public/sw.js.map
+/public/workbox-*.js
+/public/workbox-*.js.map
+/public/worker-*.js
+/public/worker-*.js.map
+/public/fallback-*.js

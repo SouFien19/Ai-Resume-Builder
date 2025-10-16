@@ -13,6 +13,7 @@ import { sanitizeInput, truncate } from "@/lib/validation/sanitizers";
 import { logger } from "@/lib/logger";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
 import { trackAIRequest } from "@/lib/ai/track-analytics";
+import { checkRateLimit, aiRateLimiter } from "@/lib/middleware/rateLimiter";
 import crypto from "crypto";
 
 const MAX_SKILLS = 20;
@@ -40,6 +41,15 @@ export async function POST(req: NextRequest) {
     const { userId } = await auth();
     if (!userId) {
       throw APIErrors.Unauthorized();
+    }
+
+    // Check rate limit (10 requests per minute)
+    const rateLimitResult = await checkRateLimit(aiRateLimiter, `ai:${userId}`, 10);
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify(rateLimitResult.error), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json', ...rateLimitResult.headers },
+      });
     }
 
     // Parse and validate request body

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PNG to ICO Converter</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    .upload-area {
+      border: 3px dashed #ddd;
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 20px;
+    }
+    .upload-area:hover {
+      border-color: #667eea;
+      background: #f8f9ff;
+    }
+    .upload-area.dragover {
+      border-color: #667eea;
+      background: #f0f3ff;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .preview {
+      margin: 20px 0;
+      text-align: center;
+    }
+    canvas {
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      background: #f5f5f5;
+      image-rendering: pixelated;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: transform 0.2s;
+    }
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .info {
+      background: #e3f2fd;
+      border-left: 4px solid #2196f3;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .success {
+      background: #e8f5e9;
+      border-left: 4px solid #4caf50;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+      color: #2e7d32;
+      font-weight: 600;
+    }
+    .icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 PNG to ICO Converter</h1>
+    <p class="subtitle">Convert your 32x32 PNG icon to favicon.ico</p>
+
+    <div class="upload-area" id="uploadArea">
+      <div class="icon">📁</div>
+      <p><strong>Click to upload</strong> or drag and drop</p>
+      <p style="font-size: 12px; color: #999; margin-top: 10px;">PNG image (recommended: 32x32px)</p>
+      <input type="file" id="fileInput" accept="image/png" />
+    </div>
+
+    <div class="preview" id="preview" style="display: none;">
+      <h3>Preview:</h3>
+      <canvas id="canvas" width="32" height="32"></canvas>
+      <p style="margin-top: 10px; font-size: 14px; color: #666;">32x32 pixels</p>
+    </div>
+
+    <button id="convertBtn" disabled>🚀 Convert to favicon.ico</button>
+
+    <div class="info">
+      <strong>ℹ️ Instructions:</strong>
+      <ol style="margin: 10px 0 0 20px;">
+        <li>Upload your 32x32 PNG icon (e.g., public/icons/ios/32.png)</li>
+        <li>Click "Convert to favicon.ico"</li>
+        <li>Save the downloaded favicon.ico to public/ folder</li>
+        <li>Clear browser cache and refresh</li>
+      </ol>
+    </div>
+
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const convertBtn = document.getElementById('convertBtn');
+    const preview = document.getElementById('preview');
+    const status = document.getElementById('status');
+    
+    let currentImage = null;
+
+    // Click to upload
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    // Drag and drop
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type === 'image/png') {
+        handleFile(file);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        handleFile(file);
+      }
+    });
+
+    function handleFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          currentImage = img;
+          
+          // Draw on canvas
+          ctx.clearRect(0, 0, 32, 32);
+          ctx.drawImage(img, 0, 0, 32, 32);
+          
+          // Show preview
+          preview.style.display = 'block';
+          convertBtn.disabled = false;
+          status.innerHTML = '';
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    convertBtn.addEventListener('click', () => {
+      if (!currentImage) return;
+
+      // Convert canvas to ICO format (simplified - we'll use PNG with ICO extension)
+      canvas.toBlob((blob) => {
+        // Create download link
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'favicon.ico';
+        a.click();
+        URL.revokeObjectURL(url);
+
+        status.innerHTML = `
+          <div class="success">
+            ✅ favicon.ico downloaded successfully!
+            <p style="margin-top: 10px; font-size: 13px;">
+              Now copy it to: <code>public/favicon.ico</code>
+            </p>
+          </div>
+        `;
+      }, 'image/png');
+    });
+  </script>
+</body>
+</html>

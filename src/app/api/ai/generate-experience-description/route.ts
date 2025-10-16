@@ -4,6 +4,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/ge
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
 import crypto from "crypto";
 import { trackAIRequest } from "@/lib/ai/track-analytics";
+import { checkRateLimit, aiRateLimiter } from "@/lib/middleware/rateLimiter";
 
 // Initialize Gemini AI with fallback to multiple environment variable names
 const genAI = new GoogleGenerativeAI(
@@ -44,6 +45,15 @@ export async function POST(req: NextRequest) {
         { success: false, error: "Unauthorized" },
         { status: 401 }
       );
+    }
+
+    // Check rate limit (10 requests per minute)
+    const rateLimitResult = await checkRateLimit(aiRateLimiter, `ai:${userId}`, 10);
+    if (!rateLimitResult.success) {
+      return NextResponse.json(rateLimitResult.error, {
+        status: 429,
+        headers: rateLimitResult.headers,
+      });
     }
 
     // ✅ Parse request body

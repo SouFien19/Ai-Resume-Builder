@@ -3,7 +3,7 @@
 import { SignIn } from "@clerk/nextjs";
 import { LazyMotion, domAnimation, m } from "@/lib/motion";
 import { Sparkles, TrendingUp, Users, Star } from "lucide-react";
-import { useEffect, useRef, lazy, Suspense } from "react";
+import { useEffect, useRef, lazy, Suspense, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { 
@@ -21,6 +21,13 @@ const StatsSection = lazy(() => import('@/components/auth/StatsSection'));
 export default function SignInPage() {
   const { isLoaded, userId, sessionClaims } = useAuth();
   const router = useRouter();
+  const hasRedirected = useRef(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Prevent hydration mismatch by only rendering animations after mount
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     // Performance optimizations
@@ -39,8 +46,6 @@ export default function SignInPage() {
   }, []);
 
   // Smart redirect after sign-in completes (once only)
-  const hasRedirected = useRef(false);
-  
   useEffect(() => {
     if (isLoaded && userId && sessionClaims && !hasRedirected.current) {
       hasRedirected.current = true;
@@ -54,9 +59,72 @@ export default function SignInPage() {
     }
   }, [isLoaded, userId, sessionClaims, router]);
 
+  // Show static content during SSR to prevent hydration mismatch
+  if (!isMounted) {
+    return (
+      <div className="grid min-h-screen lg:grid-cols-2">
+        {/* Left Panel - Static version for SSR */}
+        <div className="relative hidden lg:flex items-center justify-center bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 dark:from-blue-700 dark:via-purple-700 dark:to-pink-700 p-12">
+          <div className="relative z-10 text-center max-w-lg">
+            <div className="flex items-center justify-center gap-3 mb-8">
+              <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl border border-white/30 shadow-lg">
+                <Sparkles className="w-10 h-10 text-white" />
+              </div>
+              <h1 className="text-5xl font-bold tracking-tight text-white drop-shadow-lg">
+                Welcome Back
+              </h1>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel - Form */}
+        <div className="flex items-center justify-center bg-white dark:bg-gray-950 p-6">
+          <div className="w-full max-w-md space-y-8">
+            <div className="text-center lg:hidden space-y-3">
+              <div className="flex items-center justify-center gap-3">
+                <div className="p-2.5 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl shadow-lg">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+                  ResumeCraft AI
+                </h1>
+              </div>
+              <p className="text-gray-600 dark:text-gray-400 font-medium">Sign in to your account</p>
+            </div>
+            
+            <SignIn
+              appearance={{
+                layout: {
+                  shimmer: false,
+                  animations: false,
+                },
+                elements: {
+                  formButtonPrimary: 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold shadow-lg',
+                  card: 'shadow-2xl shadow-gray-300/50 dark:shadow-blue-500/20 border-2 border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900',
+                  headerTitle: 'text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent',
+                  headerSubtitle: 'text-gray-600 dark:text-gray-400 font-medium text-base',
+                  socialButtonsBlockButton: 'border-2 border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-medium shadow-sm',
+                  formFieldInput: 'border-2 border-gray-200 dark:border-gray-700 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/20 transition-colors duration-150 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500',
+                  formFieldLabel: 'text-gray-700 dark:text-gray-300 font-semibold',
+                  footerActionLink: 'text-purple-600 dark:text-purple-400 hover:text-pink-600 dark:hover:text-pink-400 font-bold underline-offset-4 hover:underline transition-all',
+                  identityPreviewText: 'text-gray-900 dark:text-white font-medium',
+                  identityPreviewEditButton: 'text-purple-600 dark:text-purple-400 hover:text-pink-600 dark:hover:text-pink-400 font-semibold',
+                  formFieldInputShowPasswordButton: 'text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors',
+                  otpCodeFieldInput: 'border-2 border-gray-200 dark:border-gray-700 focus:border-purple-500 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white',
+                  dividerLine: 'bg-gray-300 dark:bg-gray-700',
+                  dividerText: 'text-gray-500 dark:text-gray-400 font-medium',
+                },
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <LazyMotion features={domAnimation}>
-      <div className="grid min-h-screen lg:grid-cols-2">
+      <div className="grid min-h-screen lg:grid-cols-2" suppressHydrationWarning>
         {/* Left Panel - Animated Branding with Gradient Background */}
         <div className="relative hidden lg:flex items-center justify-center bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 dark:from-blue-700 dark:via-purple-700 dark:to-pink-700 p-12 overflow-hidden">
           {/* Lazy-loaded animated background for performance */}

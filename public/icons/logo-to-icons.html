@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logo to PWA Icons - ResumeCraft AI</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 1200px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { text-align: center; color: #333; margin-bottom: 20px; }
+        .logo-preview {
+            text-align: center;
+            margin: 30px 0;
+            padding: 30px;
+            background: #f0f9ff;
+            border-radius: 12px;
+        }
+        .logo-preview img {
+            max-width: 200px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .instructions {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .icons-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .icon-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .icon-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            border-color: #3b82f6;
+        }
+        canvas {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: #f3f4f6;
+        }
+        .icon-size {
+            font-weight: bold;
+            color: #3b82f6;
+            margin-bottom: 10px;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        button:hover { background: #2563eb; }
+        .download-all {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .download-all button {
+            padding: 15px 40px;
+            font-size: 16px;
+        }
+        .success {
+            background: #d1fae5;
+            border-left: 4px solid #10b981;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Your Logo → PWA Icons</h1>
+        
+        <div class="logo-preview">
+            <h3>Your Current Logo</h3>
+            <img src="/icons/rx.svg" alt="ResumeCraft Logo" id="originalLogo">
+        </div>
+
+        <div class="success">
+            <strong>✅ Logo Found!</strong> Your beautiful rx.svg logo is ready to be converted into PWA icons.
+        </div>
+
+        <div class="instructions">
+            <h3>📋 How This Works:</h3>
+            <ol style="margin-left: 20px; margin-top: 10px; line-height: 1.8;">
+                <li>Your SVG logo will be converted to PNG at all required sizes</li>
+                <li>Click "Download" for each icon or "Download All"</li>
+                <li>Icons will automatically use your gradient logo design</li>
+                <li>Replace the placeholder icons in <code>/public/icons/</code></li>
+            </ol>
+        </div>
+
+        <div class="icons-grid" id="iconsGrid"></div>
+
+        <div class="download-all">
+            <button onclick="downloadAllIcons()">📥 Download All Icons (Your Logo)</button>
+        </div>
+
+        <div class="instructions">
+            <strong>💡 Note:</strong> These icons will use your actual rx.svg logo instead of placeholders!
+        </div>
+    </div>
+
+    <script>
+        const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+        const maskableSizes = [192, 512];
+
+        // Load the SVG logo
+        const logoImg = new Image();
+        logoImg.src = '/icons/rx.svg';
+
+        function createIconFromLogo(size, isMaskable = false) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // Wait for logo to load
+            return new Promise((resolve) => {
+                if (logoImg.complete) {
+                    drawIcon();
+                } else {
+                    logoImg.onload = drawIcon;
+                }
+
+                function drawIcon() {
+                    if (isMaskable) {
+                        // For maskable icons, add safe zone padding (10%)
+                        const padding = size * 0.1;
+                        const logoSize = size - (padding * 2);
+                        
+                        // Fill background
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, size, size);
+                        
+                        // Draw logo centered with padding
+                        ctx.drawImage(logoImg, padding, padding, logoSize, logoSize);
+                    } else {
+                        // Regular icon - full size
+                        ctx.drawImage(logoImg, 0, 0, size, size);
+                    }
+                    
+                    resolve(canvas);
+                }
+            });
+        }
+
+        function downloadCanvas(canvas, filename) {
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        async function renderIcons() {
+            const grid = document.getElementById('iconsGrid');
+
+            // Regular icons
+            for (const size of sizes) {
+                const card = document.createElement('div');
+                card.className = 'icon-card';
+                
+                const sizeLabel = document.createElement('div');
+                sizeLabel.className = 'icon-size';
+                sizeLabel.textContent = `${size}x${size}`;
+                
+                const canvas = await createIconFromLogo(size);
+                
+                const button = document.createElement('button');
+                button.textContent = 'Download';
+                button.onclick = () => downloadCanvas(canvas, `icon-${size}x${size}.png`);
+                
+                card.appendChild(sizeLabel);
+                card.appendChild(canvas);
+                card.appendChild(button);
+                grid.appendChild(card);
+            }
+
+            // Maskable icons
+            for (const size of maskableSizes) {
+                const card = document.createElement('div');
+                card.className = 'icon-card';
+                
+                const sizeLabel = document.createElement('div');
+                sizeLabel.className = 'icon-size';
+                sizeLabel.textContent = `${size}x${size} (Maskable)`;
+                
+                const canvas = await createIconFromLogo(size, true);
+                
+                const button = document.createElement('button');
+                button.textContent = 'Download';
+                button.onclick = () => downloadCanvas(canvas, `icon-maskable-${size}x${size}.png`);
+                
+                card.appendChild(sizeLabel);
+                card.appendChild(canvas);
+                card.appendChild(button);
+                grid.appendChild(card);
+            }
+        }
+
+        async function downloadAllIcons() {
+            alert('Downloading all icons with your logo! Each will download individually.');
+            
+            // Download regular icons
+            for (const size of sizes) {
+                const canvas = await createIconFromLogo(size);
+                setTimeout(() => downloadCanvas(canvas, `icon-${size}x${size}.png`), 100 * size);
+            }
+
+            // Download maskable icons
+            for (const size of maskableSizes) {
+                const canvas = await createIconFromLogo(size, true);
+                setTimeout(() => downloadCanvas(canvas, `icon-maskable-${size}x${size}.png`), 100 * (size + 10));
+            }
+        }
+
+        // Initialize
+        logoImg.onload = () => {
+            renderIcons();
+        };
+    </script>
+</body>
+</html>

@@ -64,6 +64,9 @@ export default function Page() {
   const [expandedInterview, setExpandedInterview] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  // Note: Role-based redirect is handled by /api/auth/callback server-side
+  // No client-side redirect needed - users land on correct page directly
+
   const fetchIntel = async () => {
     setLoadingIntel(true);
     try {
@@ -123,6 +126,9 @@ export default function Page() {
     if (hours < 24) return `${hours}h ago`;
     return `${Math.floor(hours / 24)}d ago`;
   };
+
+  // Note: Role-based redirect handled by /api/auth/callback (server-side)
+  // Users are sent to correct dashboard on sign-in, no client redirect needed
 
   useEffect(() => {
     // Fetch dashboard stats

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { getModel } from "@/lib/ai/gemini";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
   try {
-  const { messages } = await req.json();
+    const { userId } = await auth();
+    const { messages } = await req.json();
     const model = getModel("gemini-1.5-flash");
     if (!model) return NextResponse.json({ text: "AI is not configured." }, { status: 200 });
 
@@ -23,8 +27,32 @@ export async function POST(req: NextRequest) {
   const anyResult = result as unknown as { response?: { text?: () => string } };
   const response = anyResult.response;
     const text = response?.text?.() ?? "";
+    
+    const requestDuration = Date.now() - startTime;
+    if (userId) {
+      const tokensUsed = Math.ceil((sys + JSON.stringify(messages)).length / 4) + Math.ceil(text.length / 4);
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: false,
+        success: true,
+        tokensUsed,
+        requestDuration,
+      });
+    }
+    
     return NextResponse.json({ text });
-  } catch {
+  } catch (error) {
+    const { userId: errorUserId } = await auth();
+    if (errorUserId) {
+      await trackAIRequest({
+        userId: errorUserId,
+        contentType: 'work-experience',
+        cached: false,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
     return NextResponse.json({ text: "" }, { status: 200 });
   }
 }

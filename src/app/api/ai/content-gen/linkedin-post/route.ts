@@ -5,6 +5,7 @@ import ContentGeneration from '@/lib/database/models/ContentGeneration';
 import connectToDatabase from '@/lib/database/connection';
 import { logger } from '@/lib/logger';
 import { getCache, setCache, CacheKeys } from '@/lib/redis';
+import { trackAIRequest } from '@/lib/ai/track-analytics';
 import crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
@@ -71,6 +72,14 @@ Generate a LinkedIn post that would generate meaningful engagement and reflect w
     const cached = await getCache<any>(cacheKey);
     if (cached) {
       console.log('[AI LinkedIn Post] ✅ Cache HIT - Saved API cost!');
+      const requestDuration = Date.now() - startTime;
+      await trackAIRequest({
+        userId,
+        contentType: 'linkedin-post',
+        cached: true,
+        success: true,
+        requestDuration,
+      });
       return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT', 'X-Cost-Saved': 'true' }});
     }
     
@@ -121,6 +130,17 @@ Generate a LinkedIn post that would generate meaningful engagement and reflect w
 
     await contentRecord.save();
 
+    const tokensUsed = Math.ceil(systemPrompt.length / 4) + Math.ceil(generatedContent.length / 4);
+    
+    await trackAIRequest({
+      userId,
+      contentType: 'linkedin-post',
+      cached: false,
+      success: true,
+      tokensUsed,
+      requestDuration: processingTime,
+    });
+
     const responseData = {
       success: true,
       data: {
@@ -145,6 +165,18 @@ Generate a LinkedIn post that would generate meaningful engagement and reflect w
 
   } catch (error) {
     console.error('LinkedIn post generation error:', error);
+    
+    const { userId: errorUserId } = await auth();
+    if (errorUserId) {
+      await trackAIRequest({
+        userId: errorUserId,
+        contentType: 'linkedin-post',
+        cached: false,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+    
     return NextResponse.json(
       { 
         success: false, 

@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import ContentGeneration from '@/lib/database/models/ContentGeneration';
 import connectToDatabase from '@/lib/database/connection';
 import { getCache, setCache, CacheKeys } from '@/lib/redis';
+import { trackAIRequest } from '@/lib/ai/track-analytics';
 import crypto from 'crypto';
 
 // Initialize Gemini AI
@@ -162,6 +163,14 @@ Provide a comprehensive analysis that will help optimize resumes, cover letters,
     const cached = await getCache<any>(cacheKey);
     if (cached) {
       console.log('[AI Skills & Keywords] ✅ Cache HIT - Saved API cost!');
+      const requestDuration = Date.now() - startTime;
+      await trackAIRequest({
+        userId,
+        contentType: 'skills-keywords',
+        cached: true,
+        success: true,
+        requestDuration,
+      });
       return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT', 'X-Cost-Saved': 'true' }});
     }
     
@@ -246,6 +255,17 @@ Provide a comprehensive analysis that will help optimize resumes, cover letters,
 
     await contentRecord.save();
 
+    const tokensUsed = Math.ceil(systemPrompt.length / 4) + Math.ceil(generatedContent.length / 4);
+    
+    await trackAIRequest({
+      userId,
+      contentType: 'skills-keywords',
+      cached: false,
+      success: true,
+      tokensUsed,
+      requestDuration: processingTime,
+    });
+
     const responseData = {
       success: true,
       data: {
@@ -270,6 +290,18 @@ Provide a comprehensive analysis that will help optimize resumes, cover letters,
 
   } catch (error) {
     console.error('Skills analysis generation error:', error);
+    
+    const { userId: errorUserId } = await auth();
+    if (errorUserId) {
+      await trackAIRequest({
+        userId: errorUserId,
+        contentType: 'skills-keywords',
+        cached: false,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+    
     return NextResponse.json(
       { 
         success: false, 

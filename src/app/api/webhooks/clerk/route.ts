@@ -51,45 +51,97 @@ export async function POST(req: Request) {
     });
   }
 
-  // Get the ID and type
-  const { id } = evt.data;
+  // Get the event type
   const eventType = evt.type;
 
-  if (eventType === "user.created") {
+  try {
     await dbConnect();
 
-    const { id, email_addresses, first_name, last_name } = evt.data;
+    switch (eventType) {
+      case 'user.created': {
+        const { id, email_addresses, username, first_name, last_name, image_url } = evt.data;
 
-    const newUser = new User({
-      clerkId: id,
-      email: email_addresses[0].email_address,
-      name: `${first_name} ${last_name}`,
-    });
+        // Create user in MongoDB with full metadata
+        await User.create({
+          clerkId: id,
+          email: email_addresses[0]?.email_address || '',
+          username: username,
+          firstName: first_name,
+          lastName: last_name,
+          name: `${first_name || ''} ${last_name || ''}`.trim() || 'User',
+          photo: image_url,
+          plan: 'free',
+          role: 'user',
+          isActive: true,
+          isSuspended: false,
+          lastActive: new Date(),
+          metadata: {
+            lastLogin: new Date(),
+            loginCount: 1,
+            signupDate: new Date(),
+            ipAddresses: [],
+          },
+          subscription: {
+            plan: 'free',
+            status: 'active',
+          },
+          aiUsage: {
+            totalRequests: 0,
+            requestsThisMonth: 0,
+            estimatedCost: 0,
+          },
+        });
 
-    await newUser.save();
-    return NextResponse.json({ message: "User created" }, { status: 201 });
-  }
-
-  if (eventType === "user.updated") {
-    await dbConnect();
-    const { id, email_addresses, first_name, last_name } = evt.data;
-
-    await User.findOneAndUpdate(
-      { clerkId: id },
-      {
-        email: email_addresses[0].email_address,
-        name: `${first_name} ${last_name}`,
+        return NextResponse.json({ message: 'User created successfully' }, { status: 201 });
       }
+
+      case 'user.updated': {
+        const { id, email_addresses, username, first_name, last_name, image_url, public_metadata } = evt.data;
+
+        // Extract role from Clerk's public metadata
+        const roleFromClerk = (public_metadata as any)?.role || 'user';
+
+        // Update user in MongoDB (including role from Clerk)
+        await User.findOneAndUpdate(
+          { clerkId: id },
+          {
+            email: email_addresses[0]?.email_address,
+            username: username,
+            firstName: first_name,
+            lastName: last_name,
+            name: `${first_name || ''} ${last_name || ''}`.trim(),
+            photo: image_url,
+            role: roleFromClerk, // ← Sync role from Clerk to MongoDB
+            lastActive: new Date(),
+          }
+        );
+
+        return NextResponse.json({ message: 'User updated successfully' }, { status: 200 });
+      }
+
+      case 'user.deleted': {
+        const { id } = evt.data;
+
+        // Soft delete - mark as inactive instead of deleting
+        await User.findOneAndUpdate(
+          { clerkId: id },
+          { 
+            isActive: false,
+            isSuspended: true,
+          }
+        );
+
+        return NextResponse.json({ message: 'User deleted successfully' }, { status: 200 });
+      }
+
+      default:
+        return NextResponse.json({ message: 'Event type not handled' }, { status: 200 });
+    }
+  } catch (error) {
+    console.error('[WEBHOOK] ❌ Error processing webhook:', error);
+    return NextResponse.json(
+      { error: 'Internal server error', message: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
     );
-    return NextResponse.json({ message: "User updated" }, { status: 200 });
   }
-
-  if (eventType === "user.deleted") {
-    await dbConnect();
-    const { id } = evt.data;
-    await User.findOneAndDelete({ clerkId: id });
-    return NextResponse.json({ message: "User deleted" }, { status: 200 });
-  }
-
-  return new Response("", { status: 200 });
 }

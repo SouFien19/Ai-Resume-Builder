@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { generateText } from "@/lib/ai/gemini";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import crypto from "crypto";
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { jobTitle, query, resumeText, location, preferences } = await req.json();
 
     const prompt = `You are an expert recruiter outreach writer.
@@ -27,6 +35,14 @@ Context:
     const cached = await getCache<{ message: string }>(cacheKey);
     if (cached) {
       console.log('[AI Outreach] ✅ Cache HIT - Saved API cost!');
+      const requestDuration = Date.now() - startTime;
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: true,
+        success: true,
+        requestDuration,
+      });
       return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT', 'X-Cost-Saved': 'true' }});
     }
     
@@ -34,6 +50,19 @@ Context:
 
     const result = await generateText(prompt, { temperature: 0.6 });
     const message = (result || "").trim();
+    
+    const requestDuration = Date.now() - startTime;
+    const tokensUsed = Math.ceil(prompt.length / 4) + Math.ceil(result.length / 4);
+    
+    await trackAIRequest({
+      userId,
+      contentType: 'work-experience',
+      cached: false,
+      success: true,
+      tokensUsed,
+      requestDuration,
+    });
+    
     const responseData = { message };
     
     // Cache for 1 hour
@@ -41,7 +70,17 @@ Context:
     console.log('[AI Outreach] ✅ Cached response for 1 hour');
     
     return NextResponse.json(responseData, { headers: { 'X-Cache': 'MISS' }});
-  } catch {
+  } catch (error) {
+    const { userId: errorUserId } = await auth();
+    if (errorUserId) {
+      await trackAIRequest({
+        userId: errorUserId,
+        contentType: 'work-experience',
+        cached: false,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
     return NextResponse.json({ error: "Failed to generate outreach" }, { status: 500 });
   }
 }

@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { generateText, safeJson } from "@/lib/ai/gemini";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const startTime = Date.now();
     const { text } = await req.json();
     const src = (text || "").slice(0, 1200);
     const prompt = `Rewrite the following resume lines with quantified impact.
@@ -19,6 +27,14 @@ TEXT:\n${src}\nJSON:`;
     const cached = await getCache<{ items: { original: string; options: string[] }[] }>(cacheKey);
     if (cached) {
       console.log('[AI Quantify] ✅ Cache HIT - Saved API cost!');
+      const requestDuration = Date.now() - startTime;
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: true,
+        success: true,
+        requestDuration,
+      });
       return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT', 'X-Cost-Saved': 'true' }});
     }
     
@@ -28,12 +44,34 @@ TEXT:\n${src}\nJSON:`;
     const parsed = safeJson<{ items: { original: string; options: string[] }[] }>(out || "");
     const responseData = parsed || { items: [] };
     
+    const requestDuration = Date.now() - startTime;
+    const tokensUsed = Math.ceil(prompt.length / 4) + Math.ceil((out || '').length / 4);
+    
+    await trackAIRequest({
+      userId,
+      contentType: 'work-experience',
+      cached: false,
+      success: true,
+      tokensUsed,
+      requestDuration,
+    });
+    
     // Cache for 1 hour
     await setCache(cacheKey, responseData, 3600);
     console.log('[AI Quantify] ✅ Cached response for 1 hour');
     
     return NextResponse.json(responseData, { headers: { 'X-Cache': 'MISS' }});
-  } catch {
+  } catch (error) {
+    const { userId: errorUserId } = await auth();
+    if (errorUserId) {
+      await trackAIRequest({
+        userId: errorUserId,
+        contentType: 'work-experience',
+        cached: false,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
     return NextResponse.json({ items: [] }, { status: 200 });
   }
 }

@@ -3,7 +3,7 @@
  * Mongoose schema for user documents with comprehensive validation
  */
 
-import { Schema, model, models, Document } from 'mongoose';
+import mongoose, { Schema, model, models, Document } from 'mongoose';
 
 export interface IUser extends Document {
   clerkId: string;
@@ -14,7 +14,43 @@ export interface IUser extends Document {
   lastName?: string;
   name?: string;
   plan: 'free' | 'pro' | 'enterprise';
+  role: 'user' | 'admin' | 'superadmin';
+  isActive: boolean;
+  isSuspended: boolean;
+  suspendedReason?: string;
+  suspendedAt?: Date;
+  suspendedBy?: string; // Clerk ID of admin who suspended
   lastActive: Date;
+  
+  // Admin tracking metadata
+  metadata: {
+    lastLogin?: Date;
+    loginCount: number;
+    signupDate: Date;
+    lastActiveAt?: Date;
+    ipAddresses: string[];
+    userAgent?: string;
+  };
+  
+  // Subscription tracking
+  subscription: {
+    plan: 'free' | 'pro' | 'enterprise';
+    status: 'active' | 'canceled' | 'past_due' | 'trialing';
+    currentPeriodStart?: Date;
+    currentPeriodEnd?: Date;
+    canceledAt?: Date;
+    trialEndsAt?: Date;
+  };
+  
+  // AI Usage tracking for admin monitoring
+  aiUsage: {
+    totalRequests: number;
+    requestsThisMonth: number;
+    lastRequestAt?: Date;
+    estimatedCost: number; // in USD
+    monthlyResetDate?: Date;
+  };
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -50,8 +86,7 @@ const UserSchema = new Schema<IUser>(
     username: {
       type: String,
       trim: true,
-      sparse: true, // Allow null but ensure uniqueness when present
-      unique: true,
+      sparse: true, // Allow null values
       minlength: [3, 'Username must be at least 3 characters'],
       maxlength: [30, 'Username cannot exceed 30 characters'],
       validate: {
@@ -102,9 +137,73 @@ const UserSchema = new Schema<IUser>(
       },
       default: 'free',
     },
+    role: {
+      type: String,
+      enum: {
+        values: ['user', 'admin', 'superadmin'],
+        message: 'Role must be user, admin, or superadmin',
+      },
+      default: 'user',
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    isSuspended: {
+      type: Boolean,
+      default: false,
+    },
+    suspendedReason: {
+      type: String,
+      trim: true,
+    },
+    suspendedAt: {
+      type: Date,
+    },
+    suspendedBy: {
+      type: String,
+      trim: true,
+    },
     lastActive: {
       type: Date,
       default: Date.now,
+    },
+    
+    // Admin tracking metadata
+    metadata: {
+      lastLogin: Date,
+      loginCount: { type: Number, default: 0 },
+      signupDate: { type: Date, default: Date.now },
+      lastActiveAt: Date,
+      ipAddresses: { type: [String], default: [] },
+      userAgent: String,
+    },
+    
+    // Subscription tracking
+    subscription: {
+      plan: {
+        type: String,
+        enum: ['free', 'pro', 'enterprise'],
+        default: 'free',
+      },
+      status: {
+        type: String,
+        enum: ['active', 'canceled', 'past_due', 'trialing'],
+        default: 'active',
+      },
+      currentPeriodStart: Date,
+      currentPeriodEnd: Date,
+      canceledAt: Date,
+      trialEndsAt: Date,
+    },
+    
+    // AI Usage tracking
+    aiUsage: {
+      totalRequests: { type: Number, default: 0 },
+      requestsThisMonth: { type: Number, default: 0 },
+      lastRequestAt: Date,
+      estimatedCost: { type: Number, default: 0 },
+      monthlyResetDate: Date,
     },
   },
   {
@@ -127,10 +226,16 @@ const UserSchema = new Schema<IUser>(
 );
 
 // Indexes for query optimization
-// Query optimizations
+// Note: clerkId already has unique:true index, no need to add another
 UserSchema.index({ email: 1 }); // Email lookup
 UserSchema.index({ plan: 1, createdAt: -1 }); // Plan-based queries
 UserSchema.index({ lastActive: -1 }); // Active user queries
+UserSchema.index({ role: 1 }); // Admin queries
+UserSchema.index({ isSuspended: 1, isActive: 1 }); // Status queries
+UserSchema.index({ 'metadata.lastActiveAt': -1 }); // Recent activity
+UserSchema.index({ 'aiUsage.totalRequests': -1 }); // AI usage tracking
+UserSchema.index({ 'subscription.status': 1 }); // Subscription queries
+UserSchema.index({ role: 1, createdAt: -1 }); // Admin user lists
 
 // Virtual for full name
 UserSchema.virtual('fullName').get(function () {
@@ -140,8 +245,8 @@ UserSchema.virtual('fullName').get(function () {
   return this.name || this.username || 'User';
 });
 
-// Virtual to check if user is active (active in last 30 days)
-UserSchema.virtual('isActive').get(function () {
+// Virtual to check if user was recently active (active in last 30 days)
+UserSchema.virtual('isRecentlyActive').get(function () {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   return this.lastActive > thirtyDaysAgo;
 });
@@ -207,6 +312,72 @@ UserSchema.statics.findActiveUsers = function (days = 30) {
   return this.find({ lastActive: { $gte: cutoffDate } });
 };
 
-const User = models.User || model<IUser>('User', UserSchema);
+// Admin-specific methods
+UserSchema.statics.getAdminStats = async function () {
+  const [totalUsers, activeUsers, suspendedUsers, usersByPlan] = await Promise.all([
+    this.countDocuments(),
+    this.countDocuments({ isActive: true, isSuspended: false }),
+    this.countDocuments({ isSuspended: true }),
+    this.aggregate([
+      { $group: { _id: '$plan', count: { $sum: 1 } } }
+    ])
+  ]);
+
+  return {
+    totalUsers,
+    activeUsers,
+    suspendedUsers,
+    usersByPlan: usersByPlan.reduce((acc, item) => {
+      acc[item._id] = item.count;
+      return acc;
+    }, {} as Record<string, number>)
+  };
+};
+
+// Method to suspend user
+UserSchema.methods.suspend = async function (reason: string) {
+  this.isSuspended = true;
+  this.suspendedReason = reason;
+  this.suspendedAt = new Date();
+  return this.save();
+};
+
+// Method to unsuspend user
+UserSchema.methods.unsuspend = async function () {
+  this.isSuspended = false;
+  this.suspendedReason = undefined;
+  this.suspendedAt = undefined;
+  return this.save();
+};
+
+// Check if user is admin
+UserSchema.methods.isAdmin = function () {
+  return this.role === 'admin' || this.role === 'superadmin';
+};
+
+// Check if user is superadmin
+UserSchema.methods.isSuperAdmin = function () {
+  return this.role === 'superadmin';
+};
+
+// ============================================
+// DATABASE INDEXES FOR PERFORMANCE
+// ============================================
+// Note: role, email, lastActive already have indexes defined above
+// Adding only NEW compound indexes here
+
+// Compound index for admin dashboard queries (active users by role)
+UserSchema.index({ role: 1, isActive: 1 });
+
+// Index on isSuspended for filtering suspended users
+UserSchema.index({ isSuspended: 1 });
+
+// Index on subscription plan for analytics
+UserSchema.index({ 'subscription.plan': 1, 'subscription.status': 1 });
+
+// Index on createdAt for sorting by signup date
+UserSchema.index({ createdAt: -1 });
+
+const User = (mongoose.models && mongoose.models.User) || model<IUser>('User', UserSchema);
 
 export default User;

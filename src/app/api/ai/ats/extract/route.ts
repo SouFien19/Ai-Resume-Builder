@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+  const { userId } = await auth();
   try {
     const contentType = req.headers.get("content-type") || "";
     if (!contentType.includes("multipart/form-data")) {
@@ -16,8 +20,29 @@ export async function POST(req: NextRequest) {
     const buffer = new Uint8Array(arrayBuffer);
     const parsed = await pdfParse(buffer);
     const text = (parsed.text || "").slice(0, 12000);
+    
+    const requestDuration = Date.now() - startTime;
+    if (userId) {
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: false,
+        success: true,
+        requestDuration,
+      });
+    }
+    
     return NextResponse.json({ text, numpages: parsed.numpages || 0 });
-  } catch {
+  } catch (error) {
+    if (userId) {
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: false,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
     return NextResponse.json({ text: "", numpages: 0 }, { status: 200 });
   }
 }

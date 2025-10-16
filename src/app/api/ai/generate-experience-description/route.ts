@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
 import crypto from "crypto";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 
 // Initialize Gemini AI with fallback to multiple environment variable names
 const genAI = new GoogleGenerativeAI(
@@ -11,6 +12,28 @@ const genAI = new GoogleGenerativeAI(
   process.env.GOOGLE_GEMINI_API_KEY || 
   ""
 );
+
+// Retry utility for handling 503/429 errors
+async function runWithRetry<T>(fn: () => Promise<T>, retries = 3, initialDelay = 2000): Promise<T> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const isRetryableError = error?.status === 429 || error?.status === 503;
+      const isLastAttempt = i === retries - 1;
+
+      if (!isRetryableError || isLastAttempt) {
+        throw error;
+      }
+
+      // Exponential backoff: 2s, 4s, 8s
+      const delay = initialDelay * Math.pow(2, i);
+      console.log(`[Retry] Attempt ${i + 1}/${retries} failed. Retrying in ${delay}ms...`);
+      await new Promise(res => setTimeout(res, delay));
+    }
+  }
+  throw new Error("Max retries reached");
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,15 +67,20 @@ export async function POST(req: NextRequest) {
 
     const startTime = Date.now();
 
-    // ✅ AI prompt
+    // ✅ AI prompt - CONSTRAINED to 2-3 lines
     const systemPrompt = `You are an expert resume writer and career coach. Generate a professional, ATS-optimized work experience description that highlights achievements and impact.
+
+**CRITICAL CONSTRAINTS:**
+- Description: MAXIMUM 2-3 SHORT lines (50-80 words total)
+- Achievements: EXACTLY 3-4 concise bullet points (15-20 words each)
+- Keep it brief, impactful, and scannable
 
 **Guidelines:**
 - Start with strong action verbs (Led, Developed, Implemented, Managed, Created, etc.)
 - Include quantifiable achievements where possible (percentages, dollar amounts, timeframes)
 - Focus on impact and results, not just responsibilities
 - Use relevant industry keywords for ATS optimization
-- Write 3-5 bullet points in past tense (or present if current role)
+- Write in past tense (or present if current role)
 - Make it specific and compelling
 - Avoid generic descriptions
 - Highlight skills and technologies used
@@ -67,8 +95,8 @@ export async function POST(req: NextRequest) {
 
 Return strictly JSON:
 {
-  "description": "Main role description paragraph",
-  "achievements": ["Achievement bullet point 1", "Achievement bullet point 2", "..."]
+  "description": "Brief 2-3 line role description (50-80 words max)",
+  "achievements": ["Short achievement 1 (15-20 words)", "Short achievement 2 (15-20 words)", "Short achievement 3 (15-20 words)"]
 }`;
 
     // Check cache
@@ -78,6 +106,15 @@ Return strictly JSON:
     const cached = await getCache<any>(cacheKey);
     if (cached) {
       console.log('[AI Experience Description] ✅ Cache HIT - Saved API cost!');
+      
+      // 🔥 Track cached AI request
+      await trackAIRequest({
+        userId,
+        contentType: 'experience-description',
+        model: 'gemini-2.0-flash-exp',
+        cached: true,
+      });
+      
       return cached;
     }
     
@@ -86,20 +123,60 @@ Return strictly JSON:
     // ✅ Use gemini-2.0-flash-exp (working model)
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
-    let result;
-    try {
-      result = await model.generateContent({
+    const safetySettings = [
+      { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+    ];
+
+    // ✅ Retry logic for 503/429 errors
+    const generationFn = async () => {
+      return await model.generateContent({
         contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
         generationConfig: {
           temperature: 0.7,
           topK: 40,
           topP: 0.95,
-          maxOutputTokens: 1024,
+          maxOutputTokens: 512, // Reduced from 1024 to force shorter output
+        },
+        safetySettings,
+      });
+    };
+
+    let result;
+    try {
+      result = await runWithRetry(generationFn, 3, 2000);
+    } catch (error: any) {
+      console.error("Gemini API error after retries:", error);
+      
+      // Fallback: Return a simple template response
+      const fallbackData = {
+        description: `Served as ${position} at ${company}, contributing to key business objectives and team success.`,
+        achievements: [
+          `Executed core responsibilities for ${position} role`,
+          `Collaborated with cross-functional teams on projects`,
+          `Applied industry best practices and modern technologies`,
+        ],
+      };
+      
+      const responseData = NextResponse.json({
+        success: true,
+        data: {
+          description: fallbackData.description,
+          achievements: fallbackData.achievements,
+          metadata: {
+            processingTime: Date.now() - startTime,
+            company,
+            position,
+            experienceLevel,
+            fallback: true,
+          },
         },
       });
-    } catch (error: any) {
-      console.error("Gemini API error:", error);
-      throw error;
+      
+      console.log('[AI Experience Description] ⚠️ Using fallback response due to API error');
+      return responseData;
     }
 
     if (!result?.response) {
@@ -173,6 +250,15 @@ Return strictly JSON:
     // Cache for 1 hour
     await setCache(cacheKey, responseData, 3600);
     console.log('[AI Experience Description] ✅ Cached response for 1 hour');
+    
+    // 🔥 Track AI generation
+    await trackAIRequest({
+      userId,
+      contentType: 'experience-description',
+      model: 'gemini-2.0-flash-exp',
+      cached: false,
+      metadata: { company, position, processingTime },
+    });
     
     return responseData;
   } catch (error) {

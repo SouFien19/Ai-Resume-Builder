@@ -14,6 +14,7 @@ import { logger } from "@/lib/logger";
 import dbConnect from "@/lib/database/connection";
 import ContentGeneration from "@/lib/database/models/ContentGeneration";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import crypto from "crypto";
 
 const MAX_CONTEXT_LENGTH = 5000;
@@ -51,6 +52,15 @@ export async function POST(req: NextRequest) {
     const cached = await getCache<{ content: string; prompt: string }>(cacheKey);
     if (cached) {
       console.log('[AI Generation] ✅ Returned from cache (fast!) - Saved API cost!');
+      
+      // 🔥 Track cached AI request
+      await trackAIRequest({
+        userId,
+        contentType: validated.contentType || 'resume-summary',
+        model: 'gemini-pro',
+        cached: true,
+      });
+      
       return successResponse(cached, {
         'X-Cache': 'HIT',
         'X-Cache-Key': cacheKey,
@@ -101,6 +111,18 @@ export async function POST(req: NextRequest) {
           },
           quality: 80,
           processingTime: 0,
+        },
+      });
+
+      // 🔥 Track AI generation
+      await trackAIRequest({
+        userId,
+        contentType: validated.contentType || 'resume-summary',
+        model: 'gemini-pro',
+        cached: false,
+        metadata: {
+          promptLength: prompt.length,
+          outputLength: text.length,
         },
       });
 

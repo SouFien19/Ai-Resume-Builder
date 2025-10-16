@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateText, safeJson } from "@/lib/ai/gemini";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
@@ -12,6 +13,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const startTime = Date.now();
     const { role, summary } = await req.json();
     const prompt = `Propose 6 concise resume interests or extracurriculars aligned to the candidate's role and summary.
 Return strictly JSON: { items: string[] } with short noun phrases (2-4 words each), no emojis.
@@ -26,6 +28,14 @@ JSON:`;
     const cached = await getCache<{ items: string[] }>(cacheKey);
     if (cached) {
       console.log('[AI Interests] ✅ Cache HIT - Saved API cost!');
+      const requestDuration = Date.now() - startTime;
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: true,
+        success: true,
+        requestDuration,
+      });
       return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT', 'X-Cost-Saved': 'true' }});
     }
     
@@ -36,6 +46,18 @@ JSON:`;
     if (Array.isArray(parsed?.items) && parsed!.items.length) {
       const items = parsed!.items.map(s => (s || "").trim()).filter(Boolean).slice(0, 8);
       if (items.length) {
+        const requestDuration = Date.now() - startTime;
+        const tokensUsed = Math.ceil(prompt.length / 4) + Math.ceil((text || '').length / 4);
+        
+        await trackAIRequest({
+          userId,
+          contentType: 'work-experience',
+          cached: false,
+          success: true,
+          tokensUsed,
+          requestDuration,
+        });
+        
         const responseData = { items };
         await setCache(cacheKey, responseData, 3600);
         console.log('[AI Interests] ✅ Cached response for 1 hour');
@@ -91,7 +113,17 @@ JSON:`;
     else if (roleLower.includes("data")) items = common.concat(data);
     else items = common.concat(dev);
     return NextResponse.json({ items: items.slice(0, 8) });
-  } catch {
+  } catch (error) {
+    const { userId: errorUserId } = await auth();
+    if (errorUserId) {
+      await trackAIRequest({
+        userId: errorUserId,
+        contentType: 'work-experience',
+        cached: false,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
     return NextResponse.json({ items: [] }, { status: 200 });
   }
 }

@@ -6,6 +6,7 @@ import dbConnect from "@/lib/database/connection";
 import JobMatch from "@/lib/database/models/JobMatch";
 import User from "@/lib/database/models/User";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import crypto from "crypto";
 
 type Match = {
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const startTime = Date.now();
     const contentType = req.headers.get("content-type") || "";
     let resumeText = "";
     let location = "";
@@ -90,6 +92,14 @@ RESUME:\n${resumeText}\nJSON:`;
     const cached = await getCache<any>(cacheKey);
     if (cached) {
       console.log('[AI Job Match] ✅ Cache HIT - Saved API cost!');
+      const requestDuration = Date.now() - startTime;
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: true,
+        success: true,
+        requestDuration,
+      });
       return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT', 'X-Cost-Saved': 'true' }});
     }
     
@@ -153,6 +163,18 @@ RESUME:\n${resumeText}\nJSON:`;
         console.error('[JOB_MATCH_DB_ERROR]', dbError instanceof Error ? dbError.message : 'Unknown error');
       }
 
+      const requestDuration = Date.now() - startTime;
+      const tokensUsed = Math.ceil(prompt.length / 4) + Math.ceil((text || '').length / 4);
+      
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: false,
+        success: true,
+        tokensUsed,
+        requestDuration,
+      });
+
       const response = {
         success: true,
         matches,
@@ -185,6 +207,18 @@ RESUME:\n${resumeText}\nJSON:`;
       error: err instanceof Error ? err.message : 'Unknown error',
       stack: err instanceof Error ? err.stack : undefined,
     });
+    
+    const { userId: errorUserId } = await auth();
+    if (errorUserId) {
+      await trackAIRequest({
+        userId: errorUserId,
+        contentType: 'work-experience',
+        cached: false,
+        success: false,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+      });
+    }
+    
     return NextResponse.json({ 
       success: false,
       error: "Failed to generate job matches. Please try again.",

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { generateText, safeJson } from "@/lib/ai/gemini";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import crypto from "crypto";
 
 function heuristicBullets(jobTitle?: string, resumeText?: string) {
@@ -25,6 +27,7 @@ function heuristicBullets(jobTitle?: string, resumeText?: string) {
 
 export async function POST(req: Request) {
   try {
+    const { userId } = await auth();
     const { jobTitle, keywords, resumeText } = await req.json();
     const prompt = `You are a resume writer. Create 3-5 concise, strong resume bullets tailored to the role.
 Use action verbs, quantify impact, and connect to keywords. Avoid personal pronouns.
@@ -47,12 +50,28 @@ Resume context: ${String(resumeText || "").slice(0, 2000)}`;
     
     console.log('[AI Tailored Bullets] ⚠️ Cache MISS - Calling AI API (slow & costs money)');
 
+    const startTime = Date.now();
     const result = await generateText(prompt, { temperature: 0.6 });
+    const requestDuration = Date.now() - startTime;
+    
     const data = safeJson<{ bullets: string[] }>(result || "");
     const aiBullets = Array.isArray(data?.bullets) ? data!.bullets.slice(0, 6) : [];
     
     if (aiBullets.length > 0) {
       const response = { bullets: aiBullets };
+      
+      // Track AI request
+      if (userId) {
+        await trackAIRequest({
+          userId,
+          contentType: 'work-experience',
+          cached: false,
+          success: true,
+          tokensUsed: Math.ceil(prompt.length / 4) + Math.ceil(result.length / 4),
+          requestDuration,
+        });
+      }
+      
       // Cache for 1 hour
       await setCache(cacheKey, response, 3600);
       console.log('[AI Tailored Bullets] ✅ Cached response for 1 hour');
@@ -61,7 +80,18 @@ Resume context: ${String(resumeText || "").slice(0, 2000)}`;
     
     // Fallback to heuristic bullets when AI not available or returned unusable output
     return NextResponse.json({ bullets: heuristicBullets(jobTitle, resumeText) });
-  } catch {
+  } catch (error) {
+    // Track failed request
+    const { userId } = await auth();
+    if (userId) {
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: false,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
     // Graceful fallback instead of 500 to keep UX smooth
     return NextResponse.json({ bullets: heuristicBullets(undefined, undefined) });
   }

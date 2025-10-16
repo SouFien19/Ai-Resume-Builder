@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { generateText } from '@/lib/ai/gemini';
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
 import { getSuggestedSkills, searchSkills } from "@/lib/ai/skill-suggestions";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
@@ -13,6 +14,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const startTime = Date.now();
     const { role, industry, seniority, experience } = await req.json();
 
     if (!role) {
@@ -47,6 +49,14 @@ Return only the JSON array, no other text.`;
     const cached = await getCache<{ skills: string[] }>(cacheKey);
     if (cached) {
       console.log('[AI Suggest Skills] ✅ Cache HIT - Saved API cost!');
+      const requestDuration = Date.now() - startTime;
+      await trackAIRequest({
+        userId,
+        contentType: 'skills-keywords',
+        cached: true,
+        success: true,
+        requestDuration,
+      });
       return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT', 'X-Cost-Saved': 'true' }});
     }
     
@@ -62,6 +72,18 @@ Return only the JSON array, no other text.`;
       const response = { 
         skills: Array.isArray(skills) ? skills : [] 
       };
+      
+      const requestDuration = Date.now() - startTime;
+      const tokensUsed = Math.ceil(prompt.length / 4) + Math.ceil((text || '').length / 4);
+      
+      await trackAIRequest({
+        userId,
+        contentType: 'skills-keywords',
+        cached: false,
+        success: true,
+        tokensUsed,
+        requestDuration,
+      });
       
       // Cache for 1 hour
       await setCache(cacheKey, response, 3600);
@@ -82,6 +104,17 @@ Return only the JSON array, no other text.`;
 
   } catch (error) {
     console.error('Skills suggestion error:', error);
+    
+    const { userId: errorUserId } = await auth();
+    if (errorUserId) {
+      await trackAIRequest({
+        userId: errorUserId,
+        contentType: 'skills-keywords',
+        cached: false,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
     
     // Fallback to rule-based suggestions if provided
     const body = await req.json().catch(() => ({}));

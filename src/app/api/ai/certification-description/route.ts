@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { generateText } from '@/lib/ai/gemini';
 import { getCache, setCache, CacheKeys } from '@/lib/redis';
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
@@ -15,6 +16,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const startTime = Date.now();
     const { name, issuer, field } = await req.json();
 
     if (!name) {
@@ -29,15 +31,18 @@ Certification: ${name}
 Issuer: ${issuer || 'Not specified'}
 Field/Context: ${field || 'Not specified'}
 
+**CRITICAL CONSTRAINTS:**
+- MAXIMUM 1-2 SHORT sentences (20-35 words total)
+- Be concise, specific, and impactful
+- No lengthy explanations or filler
+
 Requirements:
-- 1-2 sentences maximum
-- Highlight the skills, knowledge, or expertise gained
-- Mention practical applications or industry relevance
+- Highlight the key skills, knowledge, or expertise gained
+- Mention practical applications or industry relevance if notable
 - Use professional language suitable for resumes
 - Be specific about what this certification demonstrates
-- Include any notable achievements or recognition if relevant
 
-Return only the description text, no other formatting.`;
+Return only the description text (1-2 sentences max), no other formatting.`;
 
     // Check cache
     const promptHash = crypto.createHash('sha256').update(prompt).digest('hex').substring(0, 16);
@@ -46,6 +51,14 @@ Return only the description text, no other formatting.`;
     const cached = await getCache<{ description: string }>(cacheKey);
     if (cached) {
       console.log('[AI Certification Description] ✅ Cache HIT - Saved API cost!');
+      const requestDuration = Date.now() - startTime;
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: true,
+        success: true,
+        requestDuration,
+      });
       return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT', 'X-Cost-Saved': 'true' }});
     }
     
@@ -54,6 +67,18 @@ Return only the description text, no other formatting.`;
     const text = await generateText(prompt, { 
       temperature: 0.7,
       maxTokens: 1000
+    });
+
+    const requestDuration = Date.now() - startTime;
+    const tokensUsed = Math.ceil(prompt.length / 4) + Math.ceil((text || '').length / 4);
+    
+    await trackAIRequest({
+      userId,
+      contentType: 'work-experience',
+      cached: false,
+      success: true,
+      tokensUsed,
+      requestDuration,
     });
 
     const responseData = { 
@@ -67,9 +92,21 @@ Return only the description text, no other formatting.`;
     return NextResponse.json(responseData, { headers: { 'X-Cache': 'MISS' }});
 
   } catch (error) {
-    console.error('Certification description generation error:', error);
+    console.error('Error generating certification description:', error);
+    
+    const { userId: errorUserId } = await auth();
+    if (errorUserId) {
+      await trackAIRequest({
+        userId: errorUserId,
+        contentType: 'work-experience',
+        cached: false,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to generate certification description' },
+      { error: 'Failed to generate description' },
       { status: 500 }
     );
   }

@@ -29,6 +29,8 @@ import { ModeToggle } from "@/components/ui/mode-toggle"
 import { GlobalSearch } from "@/components/shared/GlobalSearch"
 import { Breadcrumb } from "@/components/shared/Breadcrumb"
 import { motion, AnimatePresence } from "framer-motion"
+import { useUserSync } from "@/hooks/useUserSync"
+import { RoleBadge } from "@/components/auth/RoleBadge"
 
 // Optimized Particle Background with CSS animations
 const SidebarParticles = () => {
@@ -245,6 +247,9 @@ export function IntegratedLayout({ children }: { children: React.ReactNode }) {
   const [isMounted, setIsMounted] = React.useState(false)
   const { user } = useUser();
 
+  // Auto-sync user to MongoDB on mount
+  useUserSync();
+
   React.useEffect(() => {
     setIsMounted(true)
   }, [])
@@ -322,7 +327,10 @@ export function IntegratedLayout({ children }: { children: React.ReactNode }) {
                   appearance={{ elements: { avatarBox: "w-10 h-10 border-2 border-neutral-700" } }} 
                 />
                 <div className="flex flex-col truncate">
-                  <span className="font-semibold text-sm text-white truncate">{user?.fullName}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm text-white truncate">{user?.fullName}</span>
+                    <RoleBadge />
+                  </div>
                   <span className="text-xs text-neutral-400 truncate">{user?.primaryEmailAddress?.emailAddress}</span>
                 </div>
                 <ModeToggle />

@@ -22,7 +22,7 @@ import('mongoose').then(async (mongooseModule) => {
       console.log('🔌 Connecting to MongoDB...');
       await mongoose.connect(MONGODB_URI);
       console.log('✅ Connected to MongoDB');
-
+*
       // Get the resumes collection
       const db = mongoose.connection.db;
       const resumesCollection = db.collection('resumes');

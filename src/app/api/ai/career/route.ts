@@ -12,6 +12,7 @@ import { successResponse } from "@/lib/api/response";
 import { sanitizeInput, truncate } from "@/lib/validation/sanitizers";
 import { logger } from "@/lib/logger";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import crypto from "crypto";
 
 const MAX_SKILLS = 20;
@@ -67,6 +68,8 @@ export async function POST(req: NextRequest) {
       hasResume: !!validated.resume,
     });
 
+    const startTime = Date.now();
+
     // Generate career insights with AI
     const prompt = `Provide career intelligence as JSON { skillGaps: string[], salaryInsights: string, progression: string[], interviewPrep: string[] }.
 Base on common market expectations. If giving salary, provide a conservative range and mark as estimate-only.
@@ -79,6 +82,14 @@ Role: ${role}\nLocation: ${location}\nKnown skills: ${skills.join(", ")}\nResume
     const cached = await getCache<any>(cacheKey);
     if (cached) {
       console.log('[AI Career] ✅ Cache HIT - Saved API cost!');
+      const requestDuration = Date.now() - startTime;
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: true,
+        success: true,
+        requestDuration,
+      });
       return successResponse(cached, { 'X-Cache': 'HIT', 'X-Cost-Saved': 'true' });
     }
     
@@ -107,6 +118,18 @@ Role: ${role}\nLocation: ${location}\nKnown skills: ${skills.join(", ")}\nResume
         interviewTips: validated.interviewPrep.length,
       });
 
+      const requestDuration = Date.now() - startTime;
+      const tokensUsed = Math.ceil(prompt.length / 4) + Math.ceil((text || '').length / 4);
+      
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: false,
+        success: true,
+        tokensUsed,
+        requestDuration,
+      });
+
       const responseData = successResponse(validated);
       
       // Cache for 1 hour
@@ -126,6 +149,18 @@ Role: ${role}\nLocation: ${location}\nKnown skills: ${skills.join(", ")}\nResume
     });
   } catch (error) {
     logger.error("Career intelligence failed", { error });
+    
+    const { userId: errorUserId } = await auth();
+    if (errorUserId) {
+      await trackAIRequest({
+        userId: errorUserId,
+        contentType: 'work-experience',
+        cached: false,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+    
     return handleAPIError(error);
   }
 }

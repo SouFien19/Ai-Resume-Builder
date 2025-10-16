@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import crypto from "crypto";
 
 // Initialize Gemini AI with fallback to multiple environment variable names
@@ -11,6 +12,27 @@ const genAI = new GoogleGenerativeAI(
   process.env.GOOGLE_GEMINI_API_KEY || 
   ""
 );
+
+// Retry utility for handling 503/429 errors
+async function runWithRetry<T>(fn: () => Promise<T>, retries = 3, initialDelay = 2000): Promise<T> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const isRetryableError = error?.status === 429 || error?.status === 503;
+      const isLastAttempt = i === retries - 1;
+
+      if (!isRetryableError || isLastAttempt) {
+        throw error;
+      }
+
+      const delay = initialDelay * Math.pow(2, i);
+      console.log(`[Retry] Attempt ${i + 1}/${retries} failed. Retrying in ${delay}ms...`);
+      await new Promise(res => setTimeout(res, delay));
+    }
+  }
+  throw new Error("Max retries reached");
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,8 +74,12 @@ export async function POST(req: NextRequest) {
 - Technologies Used: ${techStack}
 - Current Description: ${currentDescription || "None provided"}
 
+**CRITICAL CONSTRAINTS:**
+- MAXIMUM 2-3 SHORT sentences (40-60 words total)
+- Keep each sentence concise and impactful
+- No fluff or filler words
+
 **Guidelines:**
-- Write 2-3 concise sentences
 - Focus on what the project does and its impact
 - Highlight technical challenges solved
 - Include quantifiable results if possible (users, performance, scale)
@@ -61,7 +87,7 @@ export async function POST(req: NextRequest) {
 - Make it impressive but honest
 - Keep it professional and ATS-friendly
 
-Return ONLY the description text, no explanations or markdown formatting.`;
+Return ONLY the description text (2-3 sentences max), no explanations or markdown formatting.`;
 
     // Create cache key from prompt hash
     const promptHash = crypto.createHash('sha256').update(systemPrompt).digest('hex').substring(0, 16);
@@ -71,6 +97,15 @@ Return ONLY the description text, no explanations or markdown formatting.`;
     const cached = await getCache<{ description: string }>(cacheKey);
     if (cached) {
       console.log('[AI Project Description] ✅ Cache HIT - Saved API cost!');
+      
+      // 🔥 Track cached AI request
+      await trackAIRequest({
+        userId,
+        contentType: 'project-description',
+        model: 'gemini-2.0-flash-exp',
+        cached: true,
+      });
+      
       return NextResponse.json({
         success: true,
         data: cached,
@@ -83,20 +118,46 @@ Return ONLY the description text, no explanations or markdown formatting.`;
     // ✅ Use gemini-2.0-flash-exp (working model)
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
-    let result;
-    try {
-      result = await model.generateContent({
+    const safetySettings = [
+      { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+    ];
+
+    const generationFn = async () => {
+      return await model.generateContent({
         contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
         generationConfig: {
           temperature: 0.7,
           topK: 40,
           topP: 0.95,
-          maxOutputTokens: 512,
+          maxOutputTokens: 256, // Reduced from 512 for shorter output
         },
+        safetySettings,
       });
+    };
+
+    let result;
+    try {
+      result = await runWithRetry(generationFn, 3, 2000);
     } catch (error: any) {
-      console.error("Gemini API error:", error);
-      throw error;
+      console.error("Gemini API error after retries:", error);
+      
+      // Fallback response
+      const fallbackDescription = `${name} - A project built with ${techStack} to solve real-world problems. Demonstrates technical expertise and problem-solving skills.`;
+      
+      const responseData = {
+        description: fallbackDescription,
+      };
+      
+      console.log('[AI Project Description] ⚠️ Using fallback response due to API error');
+      return NextResponse.json({
+        success: true,
+        data: responseData,
+        processingTime: Date.now() - startTime,
+        fallback: true,
+      }, { headers: { 'X-Fallback': 'true' }});
     }
 
     if (!result?.response) {
@@ -115,6 +176,15 @@ Return ONLY the description text, no explanations or markdown formatting.`;
     // Cache for 1 hour
     await setCache(cacheKey, responseData, 3600);
     console.log('[AI Project Description] ✅ Cached response for 1 hour');
+
+    // 🔥 Track AI generation
+    await trackAIRequest({
+      userId,
+      contentType: 'project-description',
+      model: 'gemini-2.0-flash-exp',
+      cached: false,
+      metadata: { processingTime },
+    });
 
     return NextResponse.json({
       success: true,

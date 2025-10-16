@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateText, safeJson } from "@/lib/ai/gemini";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import crypto from "crypto";
 
 type CertItem = { name: string; issuer?: string; date?: string; credential?: string };
@@ -14,6 +15,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const startTime = Date.now();
     const { role, industry, skills } = await req.json();
     const key = `${(industry || "").toLowerCase()}|${(role || "").toLowerCase()}`;
 
@@ -32,6 +34,14 @@ JSON:`;
     const cached = await getCache<{ items: CertItem[] }>(cacheKey);
     if (cached) {
       console.log('[AI Certifications] ✅ Cache HIT - Saved API cost!');
+      const requestDuration = Date.now() - startTime;
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: true,
+        success: true,
+        requestDuration,
+      });
       return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT', 'X-Cost-Saved': 'true' }});
     }
     
@@ -43,6 +53,18 @@ JSON:`;
       // basic sanitize
       const items = parsed.items.map(i => ({ name: (i.name || "").trim(), issuer: i.issuer?.trim() })).filter(i => i.name);
       if (items.length) {
+        const requestDuration = Date.now() - startTime;
+        const tokensUsed = Math.ceil(prompt.length / 4) + Math.ceil((text || '').length / 4);
+        
+        await trackAIRequest({
+          userId,
+          contentType: 'work-experience',
+          cached: false,
+          success: true,
+          tokensUsed,
+          requestDuration,
+        });
+        
         const responseData = { items };
         await setCache(cacheKey, responseData, 3600);
         console.log('[AI Certifications] ✅ Cached response for 1 hour');
@@ -91,7 +113,17 @@ JSON:`;
 
     const domain = Object.keys(fallbacks).find(k => key.includes(k.split("|")[0])) || "software|";
     return NextResponse.json({ items: fallbacks[domain] });
-  } catch {
+  } catch (error) {
+    const { userId: errorUserId } = await auth();
+    if (errorUserId) {
+      await trackAIRequest({
+        userId: errorUserId,
+        contentType: 'work-experience',
+        cached: false,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
     return NextResponse.json({ items: [] }, { status: 200 });
   }
 }

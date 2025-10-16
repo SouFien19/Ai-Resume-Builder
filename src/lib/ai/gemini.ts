@@ -1,11 +1,38 @@
 import { logger } from '@/lib/logger';
 
+// Retry utility for handling 503/429 errors
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, initialDelay = 2000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      
+      // If 503 or 429, retry with exponential backoff
+      if ((response.status === 503 || response.status === 429) && i < retries - 1) {
+        const delay = initialDelay * Math.pow(2, i);
+        logger.warn(`API error ${response.status}, retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
+        await new Promise(res => setTimeout(res, delay));
+        continue;
+      }
+      
+      return response;
+    } catch (error: any) {
+      const isLastAttempt = i === retries - 1;
+      if (isLastAttempt) throw error;
+      
+      const delay = initialDelay * Math.pow(2, i);
+      logger.warn(`Network error, retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
+      await new Promise(res => setTimeout(res, delay));
+    }
+  }
+  throw new Error("Max retries reached");
+}
+
 // Gemini AI integration utilities
 export async function generateText(prompt: string, options?: { maxTokens?: number; temperature?: number }): Promise<string> {
   const apiKey = process.env.GOOGLE_AI_API_KEY || 
                  process.env.GEMINI_API_KEY || 
                  process.env.GOOGLE_GEMINI_API_KEY;
-  const maxTokens = options?.maxTokens || 2000;
+  const maxTokens = options?.maxTokens || 512; // Reduced from 2000 for shorter output
   const temperature = options?.temperature || 0.7;
   
   logger.info('AI text generation initiated', { maxTokens, temperature, hasApiKey: !!apiKey });
@@ -13,7 +40,7 @@ export async function generateText(prompt: string, options?: { maxTokens?: numbe
   // If API key is available, use real Gemini API
   if (apiKey) {
     try {
-      const response = await fetch(
+      const response = await fetchWithRetry(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
         {
           method: 'POST',
@@ -28,7 +55,9 @@ export async function generateText(prompt: string, options?: { maxTokens?: numbe
               responseMimeType: "text/plain"
             }
           })
-        }
+        },
+        3, // retries
+        2000 // initial delay
       );
 
       if (!response.ok) {

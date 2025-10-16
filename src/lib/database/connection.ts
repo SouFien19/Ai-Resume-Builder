@@ -21,17 +21,15 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
-declare global {
-  var mongoose: {
-    conn: Mongoose | null;
-    promise: Promise<Mongoose> | null;
-  };
+interface CachedMongoose {
+  conn: Mongoose | null;
+  promise: Promise<Mongoose> | null;
 }
 
-let cached = global.mongoose;
+let cached: CachedMongoose = (globalThis as any).mongoose;
 
 if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
+  cached = (globalThis as any).mongoose = { conn: null, promise: null };
 }
 
 /**

@@ -40,10 +40,18 @@ const nextConfig = {
       '@radix-ui/react-tabs',
       'recharts',
       'date-fns',
+      '@clerk/nextjs', // Add Clerk for tree-shaking
+      'react-icons', // Add if used
     ],
     // Use SWC for faster builds
-    swcTraceProfiling: process.env.ANALYZE === 'true',
+    // swcTraceProfiling: process.env.ANALYZE === 'true', // Disabled: Not supported by Turbopack
+    // Enable aggressive code splitting
+    webpackBuildWorker: true,
   },
+  
+  // Production optimizations
+  productionBrowserSourceMaps: false, // Disable source maps in production
+  poweredByHeader: false, // Remove X-Powered-By header
   
   // Turbopack configuration
   turbopack: {
@@ -121,39 +129,69 @@ const nextConfig = {
 
     // Production optimizations
     if (!dev && !isServer) {
-      config.optimization.splitChunks = {
-        chunks: 'all',
-        cacheGroups: {
-          default: false,
-          vendors: false,
-          // Vendor chunk for common libraries
-          vendor: {
-            name: 'vendor',
-            chunks: 'all',
-            test: /[\\/]node_modules[\\/]/,
-            priority: 20
+      // Enhanced minification
+      config.optimization = {
+        ...config.optimization,
+        minimize: true,
+        minimizer: [
+          ...config.optimization.minimizer,
+        ],
+        splitChunks: {
+          chunks: 'all',
+          minSize: 20000, // Only create chunks for files > 20KB
+          maxSize: 244000, // Split chunks larger than 244KB
+          cacheGroups: {
+            default: false,
+            vendors: false,
+            // Vendor chunk for common libraries
+            vendor: {
+              name: 'vendor',
+              chunks: 'all',
+              test: /[\\/]node_modules[\\/]/,
+              priority: 20,
+              reuseExistingChunk: true,
+            },
+            // Separate chunk for heavy libraries
+            framerMotion: {
+              name: 'framer-motion',
+              chunks: 'all',
+              test: /[\\/]node_modules[\\/]framer-motion[\\/]/,
+              priority: 30,
+              reuseExistingChunk: true,
+            },
+            // Clerk SDK separate chunk (lazy load)
+            clerk: {
+              name: 'clerk',
+              chunks: 'all',
+              test: /[\\/]node_modules[\\/]@clerk[\\/]/,
+              priority: 35,
+              reuseExistingChunk: true,
+            },
+            ai: {
+              name: 'ai-libs',
+              chunks: 'all',
+              test: /[\\/]node_modules[\\/](@google|google)[\\/]/,
+              priority: 30,
+              reuseExistingChunk: true,
+            },
+            // Radix UI components
+            radix: {
+              name: 'radix-ui',
+              chunks: 'all',
+              test: /[\\/]node_modules[\\/]@radix-ui[\\/]/,
+              priority: 28,
+              reuseExistingChunk: true,
+            },
+            // Common UI components
+            ui: {
+              name: 'ui',
+              chunks: 'all',
+              test: /[\\/]src[\\/]components[\\/]ui[\\/]/,
+              priority: 25,
+              reuseExistingChunk: true,
+            },
           },
-          // Separate chunk for heavy libraries
-          framerMotion: {
-            name: 'framer-motion',
-            chunks: 'all',
-            test: /[\\/]node_modules[\\/]framer-motion[\\/]/,
-            priority: 30
-          },
-          ai: {
-            name: 'ai-libs',
-            chunks: 'all',
-            test: /[\\/]node_modules[\\/](@google|google)[\\/]/,
-            priority: 30
-          },
-          // Common UI components
-          ui: {
-            name: 'ui',
-            chunks: 'all',
-            test: /[\\/]src[\\/]components[\\/]ui[\\/]/,
-            priority: 25
-          }
-        }
+        },
       };
     }
 

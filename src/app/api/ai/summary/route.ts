@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateText } from "@/lib/ai/gemini";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
@@ -45,13 +46,26 @@ Output only the summary text.`;
     
     console.log('[AI Summary] ⚠️ Cache MISS - Calling AI API (slow & costs money)');
 
+    const startTime = Date.now();
     const text = await generateText(prompt, { temperature: 0.7, maxTokens: 1000 });
+    const requestDuration = Date.now() - startTime;
+    
     const content = text?.trim() || "";
     
     const result = {
       content,
       summary: content // Keep for backward compatibility
     };
+    
+    // Track AI request
+    await trackAIRequest({
+      userId,
+      contentType: 'resume-summary',
+      cached: false,
+      success: true,
+      tokensUsed: Math.ceil(prompt.length / 4) + Math.ceil(content.length / 4),
+      requestDuration,
+    });
     
     // Cache for 1 hour
     await setCache(cacheKey, result, 3600);
@@ -61,7 +75,15 @@ Output only the summary text.`;
       success: true,
       data: result
     }, { headers: { 'X-Cache': 'MISS' }});
-  } catch {
+  } catch (error) {
+    // Track failed request
+    await trackAIRequest({
+      userId: (await auth()).userId || 'unknown',
+      contentType: 'resume-summary',
+      cached: false,
+      success: false,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+    });
     return NextResponse.json({ 
       success: false,
       error: "Failed to generate summary",

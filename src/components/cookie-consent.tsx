@@ -1,0 +1,217 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Cookie, X, Settings, Check, Sparkles } from 'lucide-react';
+
+export default function CookieConsent() {
+  const [isVisible, setIsVisible] = useState(false);
+  const [showCustomize, setShowCustomize] = useState(false);
+
+  useEffect(() => {
+    // Check if user has already made a choice
+    const cookieConsent = localStorage.getItem('cookieConsent');
+    if (!cookieConsent) {
+      // Show after a short delay for better UX
+      setTimeout(() => setIsVisible(true), 1500);
+    }
+  }, []);
+
+  const handleAcceptAll = () => {
+    localStorage.setItem('cookieConsent', 'all');
+    setIsVisible(false);
+  };
+
+  const handleDeclineAll = () => {
+    localStorage.setItem('cookieConsent', 'none');
+    setIsVisible(false);
+  };
+
+  const handleCustomize = () => {
+    setShowCustomize(!showCustomize);
+  };
+
+  const handleSavePreferences = () => {
+    localStorage.setItem('cookieConsent', 'custom');
+    setIsVisible(false);
+  };
+
+  return (
+    <AnimatePresence>
+      {isVisible && (
+        <motion.div
+          initial={{ y: 100, opacity: 0, scale: 0.9 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: 100, opacity: 0, scale: 0.9 }}
+          transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          className="fixed bottom-6 left-6 right-6 md:left-auto md:right-6 md:max-w-sm z-50"
+        >
+          <div className="relative bg-gradient-to-br from-white via-purple-50/50 to-pink-50/50 dark:from-gray-900 dark:via-purple-950/30 dark:to-pink-950/30 backdrop-blur-xl border-2 border-purple-200/50 dark:border-purple-800/50 rounded-2xl shadow-2xl shadow-purple-500/20 dark:shadow-purple-900/40 overflow-hidden">
+            {/* Animated background orbs */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <motion.div
+                className="absolute -top-10 -right-10 w-32 h-32 bg-gradient-to-br from-purple-300/30 to-pink-300/30 rounded-full blur-2xl"
+                animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+                transition={{ duration: 8, repeat: Infinity }}
+              />
+              <motion.div
+                className="absolute -bottom-10 -left-10 w-32 h-32 bg-gradient-to-br from-blue-300/20 to-purple-300/20 rounded-full blur-2xl"
+                animate={{ scale: [1.2, 1, 1.2], rotate: [90, 0, 90] }}
+                transition={{ duration: 10, repeat: Infinity, delay: 1 }}
+              />
+            </div>
+
+            {/* Content */}
+            <div className="relative p-5">
+              {/* Close button */}
+              <motion.button
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setIsVisible(false)}
+                className="absolute top-3 right-3 p-1.5 hover:bg-gray-200/50 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              </motion.button>
+
+              {/* Header with animated cookie */}
+              <div className="flex items-start gap-3 mb-3">
+                <motion.div
+                  animate={{ 
+                    rotate: [0, -10, 10, -10, 0],
+                    y: [0, -5, 0]
+                  }}
+                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                  className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg"
+                >
+                  <Cookie className="w-5 h-5 text-white" />
+                </motion.div>
+                <div className="flex-1 pt-1">
+                  <h3 className="text-base font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 bg-clip-text text-transparent flex items-center gap-1.5">
+                    We value your privacy
+                    <motion.span
+                      animate={{ scale: [1, 1.3, 1], rotate: [0, 20, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 2 }}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-yellow-500" />
+                    </motion.span>
+                  </h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1.5 leading-relaxed">
+                    We use cookies to enhance your browsing experience, serve personalized content, and analyze our traffic. By clicking &quot;Accept All&quot;, you consent to our use of cookies.{' '}
+                    <a href="/privacy" className="text-purple-600 dark:text-purple-400 hover:underline font-medium">
+                      Read our Privacy Policy
+                    </a>
+                  </p>
+                </div>
+              </div>
+
+              {/* Customize section */}
+              <AnimatePresence>
+                {showCustomize && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="space-y-2 py-3 border-t border-purple-200/50 dark:border-purple-800/50">
+                      {[
+                        { label: '🍪 Essential', desc: 'Required for the site to function', enabled: true, disabled: true },
+                        { label: '📊 Analytics', desc: 'Help us improve our service', enabled: true, disabled: false },
+                        { label: '🎯 Marketing', desc: 'Personalized content & ads', enabled: false, disabled: false }
+                      ].map((item, index) => (
+                        <motion.label
+                          key={index}
+                          initial={{ x: -20, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          transition={{ delay: index * 0.1 }}
+                          className="flex items-center justify-between gap-2 p-2 hover:bg-white/50 dark:hover:bg-gray-800/50 rounded-lg cursor-pointer transition-colors"
+                        >
+                          <div className="flex-1">
+                            <div className="text-xs font-semibold text-gray-900 dark:text-white">{item.label}</div>
+                            <div className="text-[10px] text-gray-500 dark:text-gray-500">{item.desc}</div>
+                          </div>
+                          <input
+                            type="checkbox"
+                            defaultChecked={item.enabled}
+                            disabled={item.disabled}
+                            className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 dark:focus:ring-purple-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                          />
+                        </motion.label>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Action buttons */}
+              <div className="flex flex-col gap-2 mt-4">
+                {showCustomize ? (
+                  <div className="flex gap-2">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setShowCustomize(false)}
+                      className="flex-1 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleSavePreferences}
+                      className="flex-1 px-3 py-2 text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-lg shadow-lg shadow-purple-500/30 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Save Preferences
+                    </motion.button>
+                  </div>
+                ) : (
+                  <>
+                    <motion.button
+                      whileHover={{ scale: 1.02, y: -1 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleAcceptAll}
+                      className="w-full px-4 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 hover:from-purple-700 hover:via-pink-700 hover:to-orange-600 rounded-lg shadow-lg shadow-purple-500/40 hover:shadow-xl hover:shadow-pink-500/50 transition-all"
+                    >
+                      🍪 Accept All Cookies
+                    </motion.button>
+                    <div className="flex gap-2">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={handleCustomize}
+                        className="flex-1 px-3 py-2 text-xs font-semibold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Settings className="w-3.5 h-3.5" />
+                        Customize
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={handleDeclineAll}
+                        className="flex-1 px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                      >
+                        Decline All
+                      </motion.button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Fun tagline */}
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="text-[10px] text-center text-gray-400 dark:text-gray-600 mt-3 italic"
+              >
+                Made with 💜 and definitely not tracking your cat videos 😸
+              </motion.p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}

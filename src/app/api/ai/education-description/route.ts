@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from "@clerk/nextjs/server";
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
+import { trackAIRequest } from "@/lib/ai/track-analytics";
 import crypto from "crypto";
 
 const MODEL_NAME = "gemini-2.0-flash-exp";
@@ -9,17 +11,24 @@ const API_KEY = process.env.GOOGLE_AI_API_KEY ||
                  process.env.GOOGLE_GEMINI_API_KEY || 
                  '';
 
-async function runWithRetry<T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
+// Enhanced retry with exponential backoff
+async function runWithRetry<T>(fn: () => Promise<T>, retries = 3, initialDelay = 2000): Promise<T> {
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
     } catch (error: any) {
-      if (i === retries - 1) throw error;
-      if (error?.status === 429 || error?.status === 503) {
-        await new Promise(res => setTimeout(res, delay * (i + 1)));
-      } else {
+      const isRetryableError = error?.status === 429 || error?.status === 503;
+      const isLastAttempt = i === retries - 1;
+
+      console.log(`[Retry] Attempt ${i + 1}/${retries} - Error: ${error?.status} ${error?.statusText || error?.message}`);
+
+      if (!isRetryableError || isLastAttempt) {
         throw error;
       }
+
+      const delay = initialDelay * Math.pow(2, i);
+      console.log(`[Retry] Waiting ${delay}ms before retry...`);
+      await new Promise(res => setTimeout(res, delay));
     }
   }
   throw new Error("Max retries reached");
@@ -30,7 +39,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'API key not found' }, { status: 500 });
   }
 
+  const startTime = Date.now();
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { institution, degree, field } = await req.json();
 
     if (!institution || !degree) {
@@ -50,14 +65,20 @@ Institution: ${institution}
 Degree: ${degree}
 Field: ${field || 'Not specified'}
 
+**CRITICAL CONSTRAINTS:**
+- MAXIMUM 1-2 SHORT sentences (25-40 words total)
+- Be brief, specific, and impactful
+- No lengthy explanations
+
 Requirements:
-- 1–2 sentences only
 - Professional tone
-- Highlight relevant coursework, achievements, or skills
+- Highlight relevant coursework, achievements, or skills if notable
 - Be specific and quantifiable where possible
-- ⚠️ Respond ONLY in JSON format:
+- Keep it scannable and concise
+
+⚠️ Respond ONLY in JSON format:
 {
-  "description": "..."
+  "description": "Brief 1-2 sentence description (25-40 words max)"
 }
 `;
 
@@ -69,6 +90,14 @@ Requirements:
     const cached = await getCache<{ description: string }>(cacheKey);
     if (cached) {
       console.log('[AI Education Description] ✅ Cache HIT - Saved API cost!');
+      const requestDuration = Date.now() - startTime;
+      await trackAIRequest({
+        userId,
+        contentType: 'work-experience',
+        cached: true,
+        success: true,
+        requestDuration,
+      });
       return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT', 'X-Cost-Saved': 'true' }});
     }
     
@@ -77,12 +106,32 @@ Requirements:
     const generationFn = async () => {
       const result = await model.generateContent({
         contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 1000 },
+        generationConfig: { 
+          temperature: 0.7, 
+          maxOutputTokens: 256, // Reduced from 1000 for shorter output
+        },
       });
       return result.response;
     };
 
-    const response = await runWithRetry(generationFn);
+    let response;
+    try {
+      response = await runWithRetry(generationFn, 3, 2000);
+    } catch (error: any) {
+      console.error('[AI Education Description] ❌ API failed after retries:', error?.message);
+      
+      // Fallback: Return simple description
+      const fallbackDescription = `${degree} in ${field || 'studies'} from ${institution}.`;
+      
+      const responseData = { description: fallbackDescription };
+      
+      await setCache(cacheKey, responseData, 3600);
+      console.log('[AI Education Description] ⚠️ Using fallback response');
+      
+      return NextResponse.json(responseData, { 
+        headers: { 'X-Cache': 'MISS', 'X-Fallback': 'true' }
+      });
+    }
     let rawText = response.text().trim();
 
     // ✅ Strip Markdown fences (```json ... ```)
@@ -103,6 +152,18 @@ Requirements:
     
     const responseData = { description: data.description || '' };
     
+    const requestDuration = Date.now() - startTime;
+    const tokensUsed = Math.ceil(fullPrompt.length / 4) + Math.ceil(rawText.length / 4);
+    
+    await trackAIRequest({
+      userId,
+      contentType: 'work-experience',
+      cached: false,
+      success: true,
+      tokensUsed,
+      requestDuration,
+    });
+    
     // Cache for 1 hour
     await setCache(cacheKey, responseData, 3600);
     console.log('[AI Education Description] ✅ Cached response for 1 hour');
@@ -110,6 +171,16 @@ Requirements:
     return NextResponse.json(responseData, { headers: { 'X-Cache': 'MISS' }});
 
   } catch (error: any) {
+    const { userId: errorUserId } = await auth();
+    if (errorUserId) {
+      await trackAIRequest({
+        userId: errorUserId,
+        contentType: 'work-experience',
+        cached: false,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
     console.error('Education description generation error:', error);
     return NextResponse.json(
       { error: 'Failed to generate education description', details: error.message },

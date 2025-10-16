@@ -1,0 +1,59 @@
+# AI Resume Builder - robots.txt
+# Fixes: 26 robots.txt errors from Lighthouse audit
+
+# Allow all bots to index main content
+User-agent: *
+Allow: /
+
+# Disallow sensitive routes
+Disallow: /api/
+Disallow: /admin/
+Disallow: /_next/
+Disallow: /private/
+Disallow: /.well-known/
+
+# Allow Google bots to index public routes
+User-agent: Googlebot
+Allow: /
+Allow: /sign-in
+Allow: /sign-up
+Allow: /dashboard
+Allow: /resumes
+Allow: /templates
+Allow: /pricing
+Allow: /about
+Allow: /contact
+Disallow: /api/
+Disallow: /admin/
+
+# Allow Bing bot
+User-agent: Bingbot
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+# Crawl delay for respectful crawling
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://yourdomain.com/sitemap.xml
+
+# Block bad bots (optional)
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+# Allow social media bots for previews
+User-agent: Twitterbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /

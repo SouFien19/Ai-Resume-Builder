@@ -177,6 +177,8 @@ const UserAnalyticsSummarySchema = new Schema({
 // Create indexes for performance
 AnalyticsSchema.index({ userId: 1, createdAt: -1 });
 AnalyticsSchema.index({ clerkUserId: 1, createdAt: -1 });
+// Index for event-based dashboard queries
+AnalyticsSchema.index({ event: 1, createdAt: -1 });
 
 UserActivitySchema.index({ userId: 1, timestamp: -1 });
 UserActivitySchema.index({ eventType: 1, timestamp: -1 });

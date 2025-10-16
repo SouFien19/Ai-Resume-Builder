@@ -13,6 +13,7 @@ import { UpdateResumeSchema } from "@/lib/validation/schemas";
 import { sanitizeInput, sanitizeObject, sanitizeObjectId } from "@/lib/validation/sanitizers";
 import { logger } from "@/lib/logger";
 import { deleteCache, deleteCacheMultiple, CacheKeys } from "@/lib/redis";
+import { analytics } from "@/lib/analytics/posthog";
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -265,6 +266,12 @@ export async function PUT(
     ]);
     console.log('[Resumes API] 🗑️ Invalidated cache after resume update');
 
+    // Track resume update in analytics
+    analytics.resumeSaved(resumeId, false);
+    if ('templateId' in update) {
+      analytics.templateSelected(update.templateId as string);
+    }
+
     logger.info('Resume updated', {
       resumeId,
       userId: user._id,
@@ -321,6 +328,9 @@ export async function DELETE(
       CacheKeys.resumes.byId(resumeId),
     ]);
     console.log('[Resumes API] 🗑️ Invalidated cache after resume deletion');
+
+    // Track resume deletion in analytics
+    analytics.resumeDeleted(resumeId);
 
     logger.info('Resume deleted', {
       resumeId,

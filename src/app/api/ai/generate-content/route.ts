@@ -16,6 +16,7 @@ import ContentGeneration from "@/lib/database/models/ContentGeneration";
 import { getCache, setCache, CacheKeys } from "@/lib/redis";
 import { trackAIRequest } from "@/lib/ai/track-analytics";
 import { checkRateLimit, aiRateLimiter } from "@/lib/middleware/rateLimiter";
+import { analytics } from "@/lib/analytics/posthog";
 import crypto from "crypto";
 
 const MAX_CONTEXT_LENGTH = 5000;
@@ -70,6 +71,12 @@ export async function POST(req: NextRequest) {
         model: 'gemini-pro',
         cached: true,
       });
+
+      // Track in analytics
+      analytics.aiContentGenerated(
+        validated.contentType || 'resume-summary',
+        cached.content.split(' ').length
+      );
       
       return successResponse(cached, {
         'X-Cache': 'HIT',
@@ -135,6 +142,12 @@ export async function POST(req: NextRequest) {
           outputLength: text.length,
         },
       });
+
+      // Track in analytics
+      analytics.aiContentGenerated(
+        validated.contentType || 'resume-summary',
+        text.split(' ').length
+      );
 
       logger.info("Content generation saved to database", { userId });
     } catch (dbError) {

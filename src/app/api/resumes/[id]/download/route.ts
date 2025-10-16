@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/database/connection";
 import Resume from "@/lib/database/models/Resume";
 import User from "@/lib/database/models/User";
+import { analytics } from "@/lib/analytics/posthog";
 
 // POST to increment download count for a resume by ID
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -29,6 +30,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!updated) {
       return new Response("Resume not found", { status: 404 });
     }
+
+    // Track download in analytics
+    analytics.resumeDownloaded(resolvedParams.id, 'pdf');
 
     return NextResponse.json({ downloads: updated.downloads });
   } catch (error) {

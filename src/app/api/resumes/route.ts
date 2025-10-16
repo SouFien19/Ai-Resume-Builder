@@ -13,6 +13,7 @@ import { CreateResumeSchema } from "@/lib/validation/schemas";
 import { sanitizeInput } from "@/lib/validation/sanitizers";
 import { logger } from "@/lib/logger";
 import { getCache, setCache, deleteCache, CacheKeys } from "@/lib/redis";
+import { analytics } from "@/lib/analytics/posthog";
 
 /**
  * GET /api/resumes
@@ -174,6 +175,10 @@ export async function POST(request: Request) {
     const cacheKey = CacheKeys.resumes.user(user._id.toString());
     await deleteCache(cacheKey);
     console.log('[Resumes API] 🗑️ Invalidated cache after resume creation');
+
+    // Track resume creation in analytics
+    analytics.resumeSaved(newResume._id.toString(), true);
+    analytics.templateSelected(newResume.templateId);
 
     logger.info('Resume created', {
       resumeId: newResume._id,

@@ -11,6 +11,7 @@ import GoogleAnalytics from "@/components/GoogleAnalytics";
 import CookieConsent from "@/components/CookieConsent";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
+import { AnalyticsProvider } from "@/components/providers/AnalyticsProvider";
 
 const fontSans = FontSans({
   subsets: ["latin"],
@@ -160,15 +161,16 @@ export default function RootLayout({
           )}
         >
           {gaId && <GoogleAnalytics gaId={gaId} />}
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <ErrorBoundary>
-              {children}
-              <Toaster 
+          <AnalyticsProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              <ErrorBoundary>
+                {children}
+                <Toaster 
                 position="top-right" 
                 richColors 
                 expand={false}
@@ -191,6 +193,7 @@ export default function RootLayout({
               <PWAInstallPrompt />
             </ErrorBoundary>
           </ThemeProvider>
+          </AnalyticsProvider>
         </body>
       </html>
     </ClerkProvider>

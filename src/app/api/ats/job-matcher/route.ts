@@ -4,6 +4,7 @@ import { generateText, safeJson } from "@/lib/ai/gemini";
 import dbConnect from "@/lib/database/connection";
 import JobMatch from "@/lib/database/models/JobMatch";
 import User from "@/lib/database/models/User";
+import { analytics } from "@/lib/analytics/posthog";
 
 interface FilterCriteria {
   company?: string;
@@ -190,6 +191,10 @@ export async function POST(req: NextRequest) {
             searchDate: new Date(),
           });
           console.log('[JOB_MATCHER] Saved to database');
+
+          // Track job match completion
+          const averageScore = jobListings.reduce((acc: number, job: any) => acc + (job.matchScore || 0), 0) / jobListings.length;
+          analytics.jobMatchCompleted('unknown', averageScore);
         }
       } catch (dbError) {
         // Log but don't fail the request

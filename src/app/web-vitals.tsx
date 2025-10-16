@@ -1,6 +1,8 @@
 'use client'
 
 import { useReportWebVitals } from 'next/web-vitals'
+import * as Sentry from '@sentry/nextjs';
+import { posthog } from '@/lib/analytics/posthog';
 
 /**
  * Web Vitals Performance Monitoring
@@ -20,6 +22,39 @@ export function WebVitals() {
         metric_delta: metric.delta,
         metric_rating: metric.rating,
       })
+    }
+    
+    // Send to PostHog
+    if (typeof window !== 'undefined') {
+      try {
+        posthog.capture('web_vital', {
+          name: metric.name,
+          value: metric.value,
+          rating: metric.rating,
+          delta: metric.delta,
+          id: metric.id,
+        });
+      } catch (error) {
+        console.error('[Web Vitals] PostHog error:', error);
+      }
+    }
+    
+    // Send to Sentry
+    try {
+      Sentry.captureMessage(`Web Vital: ${metric.name}`, {
+        level: metric.rating === 'good' ? 'info' : 'warning',
+        tags: {
+          web_vital: metric.name,
+          rating: metric.rating,
+        },
+        extra: {
+          value: metric.value,
+          delta: metric.delta,
+          id: metric.id,
+        },
+      });
+    } catch (error) {
+      console.error('[Web Vitals] Sentry error:', error);
     }
 
     // Log metrics in development for debugging

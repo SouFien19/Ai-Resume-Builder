@@ -142,6 +142,47 @@ generated/
 !README.md
 !docs/**/*.md
 
+# LaTeX compilation artifacts and temporary files
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+*.bcf
+*.run.xml
+*.idx
+*.ilg
+*.ind
+
+# Ignore ALL LaTeX template files (thesis kept in separate repo)
+latex-template/
+PROJECT_REPORT_*.tex
+REPORT_PART*.tex
+Rapport_Template_ISI.pdf
+DEDICATION_PAGE_PROFESSIONAL.tex
+
+# Python scripts for image organization (development only)
+merge_images.py
+organize_screenshots.py
+
+# PowerShell scripts (development only)
+*.ps1
+
+# Kubernetes and Docker development configs
+k8s/
+Dockerfile.dev
+Dockerfile.simple
+docker-compose.yml
+
+# Sprint data archives
+sprint-data/
+
 # PWA (Progressive Web App) files
 # Service worker and workbox files are auto-generated
 /public/sw.js

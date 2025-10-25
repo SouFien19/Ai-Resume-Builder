@@ -335,15 +335,22 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON object.`;
     text = text.replace(/```json\s*/g, '').replace(/```\s*$/g, '').trim();
 
     // Parse and validate AI response
-    const parsed = safeJson<{
-      score: number;
-      missingKeywords: string[];
-      recommendations: string[];
-    }>(text || "");
+    const parsed = safeJson<any>(text || "");
 
     if (parsed) {
       // Validate response structure
       const validated = ATSResponseSchema.parse(parsed);
+      
+      // Extract missing keywords (supports both new and legacy format)
+      const missingKeywords = 
+        validated.keywordAnalysis?.missingKeywords || 
+        validated.missingKeywords || 
+        [];
+      
+      // Extract recommendations (convert to strings for database)
+      const recommendationStrings = validated.recommendations?.map(
+        r => `[${r.priority}] ${r.category}: ${r.action}`
+      ) || [];
       
       // Connect to database and save the score
       try {
@@ -360,10 +367,10 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON object.`;
             resumeText: allText.substring(0, 1000), // Save first 1000 chars
             jobDescription: jd.substring(0, 1000),
             analysis: {
-              missingKeywords: validated.missingKeywords || [],
-              recommendations: validated.recommendations || [],
-              strengths: [],
-              weaknesses: [],
+              missingKeywords,
+              recommendations: recommendationStrings,
+              strengths: validated.atsCompatibility?.goodPoints || [],
+              weaknesses: validated.atsCompatibility?.issues || [],
             },
           });
 
@@ -386,8 +393,8 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON object.`;
       logger.info("ATS analysis completed", {
         userId,
         score: validated.score,
-        keywordCount: validated.missingKeywords.length,
-        recommendationCount: validated.recommendations.length,
+        keywordCount: missingKeywords.length,
+        recommendationCount: validated.recommendations?.length || 0,
       });
 
       // Cache the validated data (not the full response)
@@ -399,13 +406,25 @@ Return ONLY valid JSON. No markdown, no explanations, just the JSON object.`;
 
     // Fallback if AI parsing fails
     logger.warn("ATS analysis fallback used", { userId });
-    return successResponse({
+    const fallbackResponse = {
       score: 60,
-      missingKeywords: [],
+      keywordAnalysis: {
+        totalKeywords: 0,
+        matchedKeywords: [],
+        missingKeywords: [],
+        matchPercentage: 60,
+      },
       recommendations: [
-        "Ensure the top 5 job description keywords appear clearly in your summary and skills section.",
+        {
+          priority: "HIGH" as const,
+          category: "keywords" as const,
+          issue: "Unable to perform detailed analysis",
+          action: "Ensure the top 5 job description keywords appear clearly in your summary and skills section",
+          impact: "Improves keyword matching and ATS score"
+        }
       ],
-    });
+    };
+    return successResponse(fallbackResponse);
   } catch (error) {
     logger.error("ATS analysis failed", { error });
     return handleAPIError(error);

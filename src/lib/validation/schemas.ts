@@ -351,8 +351,55 @@ export const ATSAnalysisSchema = z.object({
 
 export const ATSResponseSchema = z.object({
   score: z.number().min(0).max(100),
-  missingKeywords: z.array(z.string()),
-  recommendations: z.array(z.string()),
+  categoryScores: z.object({
+    contactInfo: z.number().min(0).max(100),
+    workExperience: z.number().min(0).max(100),
+    education: z.number().min(0).max(100),
+    skills: z.number().min(0).max(100),
+    formatting: z.number().min(0).max(100),
+    keywords: z.number().min(0).max(100),
+  }).optional(),
+  keywordAnalysis: z.object({
+    totalKeywords: z.number(),
+    matchedKeywords: z.array(z.string()),
+    missingKeywords: z.array(z.string()),
+    matchPercentage: z.number().min(0).max(100),
+  }).optional(),
+  atsCompatibility: z.object({
+    hasProblems: z.boolean(),
+    issues: z.array(z.string()),
+    warnings: z.array(z.string()),
+    goodPoints: z.array(z.string()),
+  }).optional(),
+  recommendations: z.array(
+    z.object({
+      priority: z.enum(["HIGH", "MEDIUM", "LOW"]),
+      category: z.enum(["keywords", "experience", "formatting", "skills", "education"]),
+      issue: z.string(),
+      action: z.string(),
+      impact: z.string(),
+    })
+  ).optional(),
+  sectionAnalysis: z.object({
+    summary: z.object({
+      status: z.enum(["good", "needs-work", "missing"]),
+      feedback: z.string(),
+    }),
+    experience: z.object({
+      status: z.enum(["good", "needs-work", "missing"]),
+      feedback: z.string(),
+    }),
+    education: z.object({
+      status: z.enum(["good", "needs-work", "missing"]),
+      feedback: z.string(),
+    }),
+    skills: z.object({
+      status: z.enum(["good", "needs-work", "missing"]),
+      feedback: z.string(),
+    }),
+  }).optional(),
+  // Legacy fields for backward compatibility
+  missingKeywords: z.array(z.string()).optional(),
 });
 
 // ============================================

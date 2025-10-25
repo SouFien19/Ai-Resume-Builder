@@ -73,13 +73,13 @@ type SortOption = 'match-high' | 'match-low' | 'date-new' | 'date-old' | 'releva
 const extractLocationFromResume = (resumeText: string): string => {
   if (!resumeText) return '';
   
+  // Common tech terms to exclude (NOT locations)
+  const techExclusions = /\b(React|Angular|Vue|Node|Django|Flask|FastAPI|Express|Spring|Laravel|Symfony|Rails|Next|Nuxt|Svelte|jQuery|Bootstrap|Tailwind|MongoDB|MySQL|PostgreSQL|Redis|Docker|Kubernetes|AWS|Azure|GCP|TypeScript|JavaScript|Python|Java|Ruby|PHP|Go|Rust|Swift|Kotlin)\b/gi;
+  
   // INTERNATIONAL location patterns - works for Germany, Europe, USA, and worldwide
   const patterns = [
     // Pattern 1: "located in/based in [City, Country]" - Most explicit
     /(?:located in|based in|residing in|living in|living at|location:|address:)\s*:?\s*([A-Z][a-zA-Z\s\-\']+(?:,\s*[A-Z][a-zA-Z\s\-]+){1,2})/i,
-    
-    // Pattern 2: City, Country format (e.g., "Berlin, Germany" or "Munich, Bavaria, Germany")
-    /\b([A-Z][a-z]+(?:[\s\-][A-Z][a-z]+)*,\s*[A-Z][a-z]+(?:[\s\-][A-Z][a-z]+)*)\b/,
     
     // Pattern 3: Major German cities (with or without country/state)
     /\b(Berlin|München|Munich|Hamburg|Frankfurt|Köln|Cologne|Stuttgart|Düsseldorf|Dortmund|Essen|Leipzig|Bremen|Dresden|Hanover|Hannover|Nuremberg|Nürnberg|Duisburg|Bochum|Wuppertal|Bonn|Bielefeld|Mannheim|Karlsruhe|Augsburg|Wiesbaden|Freiburg|Aachen)(?:,?\s*(?:Germany|Deutschland|Bavaria|Bayern|NRW|Nordrhein-Westfalen))?\b/i,
@@ -92,14 +92,21 @@ const extractLocationFromResume = (resumeText: string): string => {
     
     // Pattern 6: Country names (if no city found)
     /\b(Germany|Deutschland|France|Spain|Italy|Netherlands|Belgium|Austria|Switzerland|Sweden|Norway|Denmark|Poland|Czech Republic|United Kingdom|UK|USA|United States|Canada|Australia)(?![\w])/i,
+    
+    // Pattern 2: City, Country format (e.g., "Berlin, Germany") - LAST to avoid false positives
+    // More restrictive: requires at least 4 characters per word to avoid matching "Go, PHP"
+    /\b([A-Z][a-z]{3,}(?:[\s\-][A-Z][a-z]+)*,\s*[A-Z][a-z]{3,}(?:[\s\-][A-Z][a-z]+)*)\b/,
   ];
   
   for (const pattern of patterns) {
     const match = resumeText.match(pattern);
     if (match && match[1]) {
       const location = match[1].trim();
+      
       // Filter out obvious false positives
-      if (location.length > 2 && !location.match(/^(the|and|for|with|from|about|this|that|here|there)$/i)) {
+      if (location.length > 2 && 
+          !location.match(/^(the|and|for|with|from|about|this|that|here|there)$/i) &&
+          !techExclusions.test(location)) {
         console.log('[LOCATION_DETECTED]', location);
         return location;
       }

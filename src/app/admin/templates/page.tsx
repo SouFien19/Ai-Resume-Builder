@@ -1,3 +1,6 @@
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+
 /**
  * Templates Page
  * Manage resume templates

@@ -13,6 +13,10 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { AnalyticsProvider } from "@/components/providers/AnalyticsProvider";
 
+// Force dynamic rendering for all pages (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
+
 const fontSans = FontSans({
   subsets: ["latin"],
   variable: "--font-sans",

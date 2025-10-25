@@ -1,5 +1,8 @@
 "use client";
 
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { Activity, Loader2, RefreshCw, BarChart2, Clock, Briefcase, Target, Calendar, BookmarkPlus, TrendingUp, MessageSquare, Users, Search, FileText, Star, Download, Copy, Eye } from 'lucide-react';

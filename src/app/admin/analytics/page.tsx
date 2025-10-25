@@ -1,5 +1,9 @@
 'use client';
 
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+
+
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {

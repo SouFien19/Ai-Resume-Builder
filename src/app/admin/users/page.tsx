@@ -1,4 +1,8 @@
 /**
+
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+
  * Users Page
  * Enhanced list and management of all users with search, filters, pagination
  */

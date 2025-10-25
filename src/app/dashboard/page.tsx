@@ -1,5 +1,8 @@
 "use client";
 
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+
 import { motion } from "framer-motion";
 import DashboardStats from "@/components/dashboard/DashboardStats";
 import QuickActions from "@/components/dashboard/QuickActions";

@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/modern/page-header";
 import { AnimatedCard } from "@/components/ui/modern/animated-card";
 
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+
 // Using shared modern components (PageHeader, AnimatedCard)
 
 const LoadingSpinner = ({

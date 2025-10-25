@@ -1,0 +1,67 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Next.js
+.next/
+out/
+dist/
+build/
+
+# Testing
+coverage/
+.nyc_output/
+tests/
+**/*.test.js
+**/*.test.ts
+**/*.spec.js
+**/*.spec.ts
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.test
+
+# Documentation
+README.md
+CHANGELOG.md
+LICENSE
+*.md
+docs/
+
+# LaTeX
+latex-template/
+*.tex
+*.pdf
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore

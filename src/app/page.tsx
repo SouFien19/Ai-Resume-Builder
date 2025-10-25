@@ -1,4 +1,7 @@
-﻿"use client";
+"use client";
+
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
 
 import Header from "@/components/landing/Header";
 import Hero from "@/components/landing/Hero";

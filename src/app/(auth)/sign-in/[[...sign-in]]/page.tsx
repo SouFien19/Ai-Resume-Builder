@@ -1,5 +1,8 @@
 "use client";
 
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+
 import { SignIn } from "@clerk/nextjs";
 import { LazyMotion, domAnimation, m } from "@/lib/motion";
 import { Sparkles, TrendingUp, Users, Star } from "lucide-react";

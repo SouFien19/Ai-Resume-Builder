@@ -1,3 +1,6 @@
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+
 import { redirect } from "next/navigation";
 
 // This legacy route now redirects to the new, improved wizard at /dashboard/resumes/create

@@ -1,5 +1,8 @@
 "use client";
 
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";

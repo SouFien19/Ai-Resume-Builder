@@ -1,5 +1,8 @@
 "use client";
 
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useRef, useEffect, useCallback, ComponentType } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring, useInView } from 'framer-motion';
 import jsPDF from 'jspdf';

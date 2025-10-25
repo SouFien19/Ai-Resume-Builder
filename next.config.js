@@ -172,9 +172,8 @@ const nextConfig = {
   // ============================================
   
   // Output optimization for production
-  // Note: Use 'standalone' only for Docker deployments
-  // For standard production use: set output to undefined or remove this line
-  output: process.env.STANDALONE === 'true' ? 'standalone' : undefined,
+  // Disabled standalone mode to avoid Windows filename issues with node: protocol
+  // output: 'standalone',
   
   // Compiler optimizations
   compiler: {

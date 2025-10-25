@@ -1,5 +1,8 @@
 "use client";
 
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+
 /**
  * Admin Dashboard - Main Overview Page
  * Real-time statistics and monitoring
@@ -447,3 +450,4 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
+

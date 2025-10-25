@@ -1,3 +1,6 @@
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+
 /**
  * Support Page
  * Manage support tickets and user inquiries

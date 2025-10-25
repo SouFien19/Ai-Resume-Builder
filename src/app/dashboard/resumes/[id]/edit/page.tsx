@@ -1,5 +1,8 @@
 "use client";
 
+// Force dynamic rendering (no prerendering/SSG)
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useRef, useState, use, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle, Loader2, Save, Sparkles } from "lucide-react";
